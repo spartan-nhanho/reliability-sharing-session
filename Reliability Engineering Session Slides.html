@@ -1,0 +1,1939 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reliability: queues, outbox, observability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #111319;
+    --bg-deep: #0c0d12;
+    --card: #14161d;
+    --card-hi: #131a2e;
+    --line: #2a2e39;
+    --line-hi: #3d5bd8;
+    --code: #0a0b0f;
+    --text: #f2f3f6;
+    --body: #c9ccd4;
+    --muted: #9298a6;
+    --faint: #6b7180;
+    --accent: #7092ff;
+    --warn: #f0a35e;
+    --bad: #ef6b6b;
+    --good: #5fcf9a;
+    --sans: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #07080b; color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+  /* ---------- stage ---------- */
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  .slide {
+    position: absolute; left: 50%; top: 50%;
+    width: 1280px; height: 720px;
+    transform-origin: center center;
+    background: var(--bg);
+    padding: 84px 86px 64px;
+    display: none; flex-direction: column;
+    overflow: hidden;
+  }
+  .slide.active { display: flex; }
+  .slide.hero {
+    background:
+      radial-gradient(900px 520px at 18% 12%, #1b2236 0%, rgba(27,34,54,0) 70%),
+      radial-gradient(800px 500px at 95% 100%, #171a24 0%, rgba(23,26,36,0) 70%),
+      var(--bg-deep);
+  }
+  .footer {
+    position: absolute; left: 86px; bottom: 40px;
+    font-size: 14px; color: var(--faint); letter-spacing: .01em;
+  }
+  .pageno {
+    position: absolute; right: 86px; bottom: 40px;
+    font-family: var(--mono); font-size: 12px; color: var(--faint);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .pageno .dots { display: flex; gap: 5px; }
+  .pageno .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: block; }
+  .pageno .dots i.on { background: var(--accent); }
+
+  /* ---------- type ---------- */
+  .brand { font-family: var(--mono); font-size: 16px; letter-spacing: .38em; color: var(--text); }
+  .eyebrow { font-family: var(--mono); font-size: 16px; color: var(--accent); margin-bottom: 18px; }
+  h1 { font-size: 66px; line-height: 1.08; font-weight: 600; letter-spacing: -.01em; }
+  h2 { font-size: 38px; line-height: 1.18; font-weight: 600; letter-spacing: -.005em; margin-bottom: 30px; max-width: 1100px; }
+  h2.big { font-size: 60px; line-height: 1.12; max-width: 960px; }
+  h2.tightb { margin-bottom: 22px; }
+  h3 { font-size: 19px; font-weight: 500; margin-bottom: 8px; color: var(--text); }
+  p, li { font-size: 15.5px; line-height: 1.55; color: var(--muted); font-weight: 300; }
+  .lede { font-size: 21px; line-height: 1.5; color: var(--muted); font-weight: 300; max-width: 760px; }
+  .note { font-size: 15px; color: var(--text); font-weight: 300; line-height: 1.55; margin-top: 22px; max-width: 1000px; }
+  .note b, p b, li b { color: var(--text); font-weight: 500; }
+  code, .mono { font-family: var(--mono); }
+  p code, li code, .note code, td code { font-size: .88em; color: var(--accent); }
+
+  /* ---------- layout ---------- */
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .split { display: grid; grid-template-columns: 1.08fr 1fr; gap: 40px; align-items: start; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px 22px;
+  }
+  .card.hi { background: var(--card-hi); border-color: var(--line-hi); }
+  .card .tag { font-family: var(--mono); font-size: 12.5px; color: var(--accent); margin-bottom: 6px; }
+  .card p + p { margin-top: 8px; }
+  .cap { padding: 12px 16px; }
+  .cap .tag { margin-bottom: 4px; }
+  .cap p { font-size: 13.5px; line-height: 1.45; color: var(--body); }
+
+  pre {
+    background: var(--code); border-radius: 7px; padding: 14px 16px;
+    font-family: var(--mono); font-size: 13.5px; line-height: 1.6; color: #d7dae2;
+    margin: 10px 0 12px; white-space: pre; overflow: hidden;
+  }
+  pre .c { color: #6c7385; }
+  pre .k { color: #8fa8ff; }
+  pre .s { color: #a7d7a0; }
+  pre .hl { color: var(--warn); }
+
+  /* agenda */
+  .agenda { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: auto; margin-bottom: 40px; }
+  .agenda > div { border-top: 1px solid var(--line); padding-top: 18px; }
+  .agenda > div:first-child { border-top: 2px solid var(--accent); padding-top: 17px; }
+  .agenda .min { font-family: var(--mono); font-size: 14px; color: var(--accent); margin-bottom: 8px; }
+  .agenda h3 { font-size: 20px; }
+
+  /* rules list */
+  .rule { display: grid; grid-template-columns: 44px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--line); }
+  .rule:last-child { border-bottom: 1px solid var(--line); }
+  .rule .n { font-family: var(--mono); font-size: 14px; color: var(--accent); padding-top: 3px; }
+
+  .setting { display: grid; grid-template-columns: 170px 1fr; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .setting:last-child { border-bottom: 1px solid var(--line); }
+  .setting > code { font-size: 14px; color: var(--accent); padding-top: 3px; }
+  .setting p { font-size: 15px; }
+  .tight .card { padding: 13px 18px; }
+  .tight .card h3 { font-size: 17px; margin-bottom: 4px; }
+  .tight .card p { font-size: 14.5px; line-height: 1.45; }
+
+  /* mistakes */
+  .mistakes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .mistake { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  .mistake .k { font-family: var(--mono); font-size: 14px; color: var(--accent); line-height: 1.45; }
+  .mistake p { font-size: 14.5px; color: var(--body); line-height: 1.45; }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-family: var(--mono); font-weight: 400; font-size: 13px; color: var(--accent); text-align: left; padding: 0 16px 12px 0; }
+  td { font-size: 16px; color: var(--muted); font-weight: 300; padding: 15px 16px 15px 0; border-top: 1px solid var(--line); vertical-align: top; line-height: 1.45; }
+  td:first-child { font-family: var(--mono); color: var(--accent); width: 44px; font-size: 14px; }
+  td:nth-child(2) { color: var(--text); font-weight: 500; width: 270px; }
+
+  /* shutdown steps */
+  .steps { list-style: none; }
+  .steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 8px 0; color: var(--body); font-size: 15px; }
+  .steps li span { font-family: var(--mono); color: var(--accent); }
+
+  .prompt { font-family: var(--mono); font-size: 14px; color: var(--faint); margin-top: auto; }
+
+  /* ---------- outcomes grid ---------- */
+  .outcomes { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 10px; }
+  .outcomes .hd { font-family: var(--mono); font-size: 13px; color: var(--muted); padding: 0 4px; }
+  .outcomes .rh { font-family: var(--mono); font-size: 13px; color: var(--muted); display: flex; align-items: center; }
+  .oc { border-radius: 10px; padding: 13px 18px; border: 1px solid var(--line); background: var(--card); }
+  .oc h3 { font-size: 17px; margin-bottom: 3px; }
+  .oc p { font-size: 14.5px; line-height: 1.45; }
+  .oc.ok { background: #121d18; border-color: #2b5e47; }
+  .oc.ok h3 { color: var(--good); }
+  .oc.bad { background: #1d1416; border-color: #6b3434; }
+  .oc.bad h3 { color: var(--bad); }
+
+  /* ---------- diagrams ---------- */
+  svg.dg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dg text { font-family: var(--sans); fill: var(--body); }
+  .dg .t { font-size: 15px; fill: var(--text); font-weight: 500; }
+  .dg .t2 { font-size: 14px; fill: var(--text); }
+  .dg .s { font-family: var(--mono); font-size: 12px; fill: var(--muted); }
+  .dg .m { font-family: var(--mono); font-size: 13px; fill: var(--accent); }
+  .dg .rt { fill: var(--bad); }
+  .dg .gt { fill: var(--good); }
+  .dg .wt { fill: var(--warn); }
+  .dg .ft { fill: var(--faint); }
+  .dg .bx { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+  .dg .bx.hi { fill: var(--card-hi); stroke: var(--line-hi); }
+  .dg .bx.bad { fill: #1d1416; stroke: #6b3434; }
+  .dg .bx.good { fill: #121d18; stroke: #2b5e47; }
+  .dg .bx.wb { fill: #221a12; stroke: #6b4a26; }
+  .dg .bx.ghost { fill: none; stroke: var(--faint); stroke-dasharray: 4 4; }
+  .dg .w { fill: none; stroke: #4a5060; stroke-width: 1.6; }
+  .dg .w.a { stroke: var(--accent); }
+  .dg .w.r { stroke: var(--bad); }
+  .dg .w.g { stroke: var(--good); }
+  .dg .dash { stroke-dasharray: 5 5; }
+  .dg .grid-l { stroke: #23262f; stroke-width: 1; }
+  .dg .seg-a { fill: #24345f; stroke: var(--accent); stroke-width: 1; }
+  .dg .seg-w { fill: #3a2a1a; stroke: var(--warn); stroke-width: 1; }
+  .dg .seg-r { fill: #4a1f22; stroke: var(--bad); stroke-width: 1; }
+  .dg .seg-g { fill: #17352a; stroke: var(--good); stroke-width: 1; }
+  .dg .seg-n { fill: #20232c; stroke: #3a3f4c; stroke-width: 1; }
+  .dg .pk { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+  .dg .pk.r { fill: var(--bad); }
+  .dg .pk.g { fill: var(--good); }
+
+  /* ---------- steps (press → to reveal) ---------- */
+  .step { opacity: 0; transition: opacity .45s ease, transform .45s ease; }
+  div.step, p.step, section.step { transform: translateY(10px); }
+  .step.on { opacity: 1; transform: none; }
+
+  /* ---------- effects: added class .go starts them; .now finishes them instantly ---------- */
+  .fx.fade:not(.go) { opacity: 0; }
+  .fx.fade.go { animation: fxFade .55s ease both; animation-delay: var(--d, 0s); }
+  .fx.up:not(.go) { opacity: 0; transform: translateY(14px); }
+  .fx.up.go { animation: fxUp .6s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0s); }
+  .fx.draw { stroke-dasharray: 1 1; stroke-dashoffset: 1; }
+  .fx.draw.go { animation: fxDraw var(--dur, 1.1s) ease-in-out both; animation-delay: var(--d, 0s); }
+  .fx.grow { transform-box: fill-box; transform-origin: left center; }
+  .fx.grow:not(.go) { transform: scaleX(0); }
+  .fx.grow.go { animation: fxGrow var(--dur, .7s) cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0s); }
+  .fx.growy { transform-box: fill-box; transform-origin: center bottom; }
+  .fx.growy:not(.go) { transform: scaleY(0); }
+  .fx.growy.go { animation: fxGrowY .45s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0s); }
+  .fx.pop { transform-box: fill-box; transform-origin: center; }
+  .fx.pop:not(.go) { opacity: 0; transform: scale(.5); }
+  .fx.pop.go { animation: fxPop .45s cubic-bezier(.3,1.6,.5,1) both; animation-delay: var(--d, 0s); }
+  .fx.pls.go { animation: fxPls 1s ease-in-out 3 both; animation-delay: var(--d, 0s); }
+  .fx.play.go { animation: fxPlay var(--dur, 3s) linear both; animation-delay: var(--d, 0s); }
+  .fx.cyc { fill-opacity: .1; }
+  .fx.cyc.go { animation: fxCyc 6s linear infinite; animation-delay: var(--d, 0s); }
+  .fx.now.go { animation-duration: 0s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+  @keyframes fxFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fxUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes fxDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes fxGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes fxGrowY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes fxPop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+  @keyframes fxPls { 0%, 100% { stroke-width: 1.5; } 50% { stroke-width: 5; } }
+  @keyframes fxPlay { from { transform: translateX(0); } to { transform: translateX(var(--to, 0px)); } }
+  @keyframes fxCyc { 0%, 30% { fill-opacity: .45; stroke-width: 3; } 33.3%, 100% { fill-opacity: .1; stroke-width: 1.5; } }
+
+  /* pools (bulkhead) */
+  .slots { display: grid; grid-template-columns: repeat(10, 28px); gap: 6px; }
+  .slot { height: 28px; border-radius: 5px; background: #191c24; border: 1px solid var(--line); display: block; }
+  .slot.fillo.go { animation: fillO .35s ease both; animation-delay: var(--d, 0s); }
+  .slot.pulse.go { animation: pulseG 1.7s ease-in-out infinite; animation-delay: var(--d, 0s); }
+  @keyframes fillO { to { background: #3a2a1a; border-color: var(--warn); } }
+  @keyframes pulseG { 0%, 100% { background: #17352a; border-color: #2f6b50; } 50% { background: #191c24; border-color: var(--line); } }
+  .pool-row { display: flex; gap: 22px; align-items: flex-start; }
+  .pool-lbl { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .waiting { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .chip { white-space: nowrap; font-family: var(--mono); font-size: 12px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); background: var(--card); }
+  .chip.bad { border-color: #6b3434; color: var(--bad); background: #1d1416; }
+  .chip.good { border-color: #2b5e47; color: var(--good); background: #121d18; }
+  .chip.acc { border-color: var(--line-hi); color: var(--accent); background: var(--card-hi); }
+
+  /* Little's law calculator */
+  .calc { display: grid; grid-template-columns: 1.1fr 1fr; gap: 30px; align-items: center; }
+  .calc label { display: grid; grid-template-columns: 120px 1fr 80px; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .calc output { font-family: var(--mono); font-size: 14px; color: var(--text); text-align: right; }
+  .calc input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .calc .big { font-size: 46px; font-weight: 600; line-height: 1; color: var(--text); }
+  .calc .big small { font-size: 16px; color: var(--muted); font-weight: 300; margin-left: 8px; }
+  .meter { position: relative; height: 14px; border-radius: 7px; background: #191c24; border: 1px solid var(--line); margin: 12px 0 8px; overflow: hidden; }
+  .meter .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width .25s ease, background .25s ease; }
+  .meter .cap { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); padding: 0; }
+  .calc .verdict { font-size: 14px; }
+
+  /* numbers */
+  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .num { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; }
+  .num .v { font-size: 40px; font-weight: 600; line-height: 1.05; color: var(--text); letter-spacing: -.01em; }
+  .num .v .u { font-size: 20px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .num .v.acc { color: var(--accent); }
+  .num .v.bad { color: var(--bad); }
+  .num p { font-size: 14px; line-height: 1.45; margin-top: 6px; }
+
+  /* dlq chips */
+  .recv { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
+  .recv .arr { color: var(--faint); font-family: var(--mono); }
+
+  /* ---------- chrome ---------- */
+  #progress { position: fixed; left: 0; bottom: 0; height: 3px; background: var(--accent); transition: width .25s ease; z-index: 5; }
+  #notes {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 34vh; overflow: auto;
+    background: rgba(10,11,15,.96); border-top: 1px solid var(--line);
+    padding: 16px 28px 22px; font-size: 15px; line-height: 1.6; color: var(--body);
+    display: none; z-index: 6;
+  }
+  #notes.on { display: block; }
+  #notes h4 { font-family: var(--mono); font-weight: 400; font-size: 12px; color: var(--accent); margin-bottom: 6px; }
+  #notes ul { padding-left: 18px; }
+  #notes li { color: var(--body); font-size: 15px; }
+  #help {
+    position: fixed; right: 16px; top: 14px; font-family: var(--mono); font-size: 11px; color: var(--faint);
+    opacity: 0; transition: opacity .4s; z-index: 7; pointer-events: none;
+  }
+  body:hover #help { opacity: .8; }
+  aside.notes { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fx.go { animation-duration: .01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+    .step { transition: none; }
+  }
+
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    html, body { overflow: visible; height: auto; background: var(--bg); }
+    #stage { position: static; display: block; }
+    .slide { display: flex !important; position: relative; left: 0; top: 0; transform: none !important; page-break-after: always; break-after: page; }
+    .step { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .fx.go { animation-duration: 0s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
+    #progress, #notes, #help { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- shared arrowheads -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5a6070"/></marker>
+    <marker id="ahA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7092ff"/></marker>
+    <marker id="ahR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef6b6b"/></marker>
+    <marker id="ahG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5fcf9a"/></marker>
+    <g id="bolt">
+      <circle r="15" fill="#1d1416" stroke="#ef6b6b" stroke-width="1.5"/>
+      <path d="M3,-10 L-6,2 L0,2 L-3,10 L6,-2 L0,-2 Z" fill="#ef6b6b"/>
+    </g>
+  </defs>
+</svg>
+
+<div id="stage">
+
+<!-- 01 · title -->
+<section class="slide hero">
+  <div class="brand fx fade">SPARTAN</div>
+  <div style="margin-top:auto; margin-bottom:auto; padding-top:60px;">
+    <div class="eyebrow fx up" style="--d:.15s">// sharing session</div>
+    <h1 class="fx up" style="--d:.3s">Reliability: queues, outbox,<br>observability</h1>
+    <p class="lede fx up" style="margin-top:22px; --d:.5s">How work leaves the request without getting lost, how the service behaves when a dependency is slow, and how you find out what happened at 3 a.m.</p>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Introduce yourself and the format: ideas first, then 30 minutes in the real repo, then review and questions.</li>
+      <li>Ask people to keep questions coming throughout; there's time reserved at the end too.</li>
+      <li>Diagram slides build step by step: each → press reveals the next part. The dots bottom-right show how many reveals are left.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 02 · why + agenda -->
+<section class="slide">
+  <div class="eyebrow">// why this session</div>
+  <h2 class="big">Most outages aren't bugs in the code. They're the code meeting a slow dependency it never planned for.</h2>
+  <div class="agenda">
+    <div class="fx up" style="--d:.2s">
+      <div class="min">15 min</div>
+      <h3>Outbox, queues, slow dependencies, signals</h3>
+      <p>How work leaves a request without being lost or doubled, and how to fail fast and alone.</p>
+    </div>
+    <div class="fx up" style="--d:.35s">
+      <div class="min">30 min</div>
+      <h3>The real pipeline and the dashboards</h3>
+      <p>Producer, relay, consumer, DLQ. Then the logs and metrics of a past incident.</p>
+    </div>
+    <div class="fx up" style="--d:.5s">
+      <div class="min">15 min</div>
+      <h3>What review catches, then Q&amp;A</h3>
+      <p>The lost event, the poison message, the silent relay.</p>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Read the headline, pause. Everything today is about planning for the dependency that's slow or gone.</li>
+      <li>The concept part is short on purpose: the repo walkthrough shows the details.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 03 · hook -->
+<section class="slide">
+  <div class="eyebrow">// 03:07 a.m.</div>
+  <h2>Every dashboard is green. Customers say they never got their confirmation email. What happened here?</h2>
+  <div class="card" style="padding:22px 26px 14px;">
+    <svg class="dg" viewBox="0 0 1060 300" role="img" aria-label="Illustrative graph: queue depth flat near zero while outbox unsent rows climb from 02:10">
+      <g class="grid-l">
+        <line x1="60" y1="30" x2="1040" y2="30"/>
+        <line x1="60" y1="100" x2="1040" y2="100"/>
+        <line x1="60" y1="170" x2="1040" y2="170"/>
+        <line x1="60" y1="240" x2="1040" y2="240"/>
+      </g>
+      <g class="s">
+        <text class="s" x="50" y="244" text-anchor="end">0</text>
+        <text class="s" x="50" y="174" text-anchor="end">2k</text>
+        <text class="s" x="50" y="104" text-anchor="end">4k</text>
+        <text class="s" x="50" y="34" text-anchor="end">6k</text>
+        <text class="s" x="60" y="268">00:00</text>
+        <text class="s" x="305" y="268">01:00</text>
+        <text class="s" x="550" y="268">02:00</text>
+        <text class="s" x="795" y="268">03:00</text>
+        <text class="s" x="1000" y="268">03:50</text>
+      </g>
+      <g class="fx fade" style="--d:1.1s">
+        <line x1="590" y1="24" x2="590" y2="240" stroke="#f0a35e" stroke-dasharray="4 5" stroke-width="1.2"/>
+        <text class="s wt" x="598" y="44">02:10 · deploy</text>
+      </g>
+      <polyline class="fx draw" pathLength="1" style="--dur:1.6s" fill="none" stroke="#7092ff" stroke-width="2.5"
+        points="60,236 120,233 180,237 240,232 300,235 360,231 420,236 480,233 540,236 590,234 640,238 700,238 760,238 820,238 880,238 940,238 1040,238"/>
+      <polyline class="fx draw" pathLength="1" style="--d:1.3s; --dur:1.6s" fill="none" stroke="#ef6b6b" stroke-width="2.5"
+        points="60,239 300,239 590,239 640,226 700,205 760,182 820,160 880,136 940,113 1000,90 1040,74"/>
+      <g data-step="1">
+        <rect class="bx bad" x="790" y="176" width="246" height="52" rx="8"/>
+        <text class="t2" x="806" y="198">No page fired.</text>
+        <text class="s rt" x="806" y="217">queue depth looks perfect</text>
+      </g>
+      <g style="font-size:14px">
+        <circle cx="80" cy="294" r="5" fill="#7092ff"/><text x="92" y="299" style="font-size:14px">SQS queue depth (alerted)</text>
+        <circle cx="330" cy="294" r="5" fill="#ef6b6b"/><text x="342" y="299" style="font-size:14px">outbox rows with sent_at IS NULL (not alerted)</text>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="1">Hold that thought. We come back to this graph at the end of the live part.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>On entry: the queue line draws, the deploy marker appears, then the outbox line climbs.</li>
+      <li>Ask the room: "What would you check first?" Take two or three guesses, don't answer.</li>
+      <li>→ reveals "No page fired" and the hold-that-thought line.</li>
+      <li>Illustrative graph. The answer (slide 26): the relay stopped after the deploy; the queue is empty because nothing is being published, so the queue alerts stay quiet.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 04 · the problem -->
+<section class="slide">
+  <div class="eyebrow">// the problem</div>
+  <h2>Two systems, one request, no shared transaction</h2>
+  <div class="split">
+    <div class="fx up" style="--d:.1s">
+      <h3 style="color:var(--muted); font-weight:400; font-size:15px;">What everyone writes first</h3>
+<pre>transaction(db) {
+  orders.insert(order)
+}
+sqs.send(OrderCreated(order.id))   <span class="hl">// ← here</span>
+email.send(confirmation)</pre>
+      <p>The pod dies between the commit and the send: an order with no event, no email, nobody knows. Put the send inside the transaction instead, and the send succeeds, then the commit fails: an event for an order that doesn't exist.</p>
+    </div>
+    <div>
+      <h3 style="color:var(--muted); font-weight:400; font-size:15px; margin-bottom:4px;">What a request may do</h3>
+      <div class="rule step" data-step="1"><div class="n">01</div><div><h3>Write to the database</h3><p>One transaction, every table it touches, including a row that says "something else must happen".</p></div></div>
+      <div class="rule step" data-step="2"><div class="n">02</div><div><h3>Respond</h3><p>The caller gets a 201 as soon as the commit lands. Not when the email went out.</p></div></div>
+      <div class="rule step" data-step="3"><div class="n">03</div><div><h3>Nothing else</h3><p>No fire-and-forget coroutine, no "best effort" send after commit. If it matters, it is a row; a worker makes it happen.</p></div></div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Start with the code on the left; ask where it breaks before revealing the rules.</li>
+      <li>→ ×3 reveals the three rules one at a time.</li>
+      <li>"If it matters, it's a row" is the line to remember from this slide.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 05 · four outcomes -->
+<section class="slide">
+  <div class="eyebrow">// the dual write, played out</div>
+  <h2 class="tightb">Four ways a dual write can end. Two of them are bugs.</h2>
+  <svg class="dg" viewBox="0 0 1108 112" style="margin-bottom:14px">
+    <path class="w fx draw" pathLength="1" style="--dur:1.2s" d="M20,58 L1088,58"/>
+    <g class="fx fade" style="--d:.3s">
+      <circle cx="80" cy="58" r="6" fill="#7092ff"/>
+      <text class="m" x="80" y="36" text-anchor="middle">BEGIN</text>
+    </g>
+    <g class="fx fade" style="--d:.6s">
+      <circle cx="270" cy="58" r="6" fill="#7092ff"/>
+      <text class="m" x="270" y="36" text-anchor="middle">INSERT order</text>
+      <text class="s" x="270" y="88" text-anchor="middle">orders table</text>
+    </g>
+    <g class="fx fade" style="--d:.9s">
+      <circle cx="460" cy="58" r="7" fill="#5fcf9a"/>
+      <text class="m gt" x="460" y="36" text-anchor="middle">COMMIT ✓</text>
+      <text class="s" x="460" y="88" text-anchor="middle">durable</text>
+    </g>
+    <g data-step="1">
+      <use href="#bolt" x="640" y="58" class="fx pop"/>
+      <text class="m rt" x="640" y="30" text-anchor="middle">pod killed</text>
+      <text class="s" x="640" y="94" text-anchor="middle">deploy · OOM · node drain</text>
+      <rect class="bx ghost" x="760" y="40" width="150" height="36" rx="6"/>
+      <text class="m ft" x="835" y="63" text-anchor="middle">sqs.send()</text>
+      <line x1="772" y1="58" x2="898" y2="58" stroke="#ef6b6b" stroke-width="1.5"/>
+      <rect class="bx ghost" x="930" y="40" width="150" height="36" rx="6"/>
+      <text class="m ft" x="1005" y="63" text-anchor="middle">email.send()</text>
+      <line x1="942" y1="58" x2="1068" y2="58" stroke="#ef6b6b" stroke-width="1.5"/>
+      <text class="s rt" x="920" y="98" text-anchor="middle">never runs</text>
+    </g>
+  </svg>
+  <div class="outcomes">
+    <div></div>
+    <div class="hd">send succeeds</div>
+    <div class="hd">send fails, or never runs</div>
+    <div class="rh">commit succeeds</div>
+    <div class="oc ok step" data-step="2"><h3>Happy path</h3><p>Order, event, email. The demo always looks like this.</p></div>
+    <div class="oc bad step" data-step="3"><h3>Lost event</h3><p>An order with no event and no email. Nothing in the logs says so.</p></div>
+    <div class="rh">commit fails</div>
+    <div class="oc bad step" data-step="3"><h3>Ghost event</h3><p>An email for an order that doesn't exist, if the send went first.</p></div>
+    <div class="oc ok step" data-step="2"><h3>Nothing happened</h3><p>The client sees an error and retries. Annoying, but honest.</p></div>
+  </div>
+  <p class="note step" data-step="4">Reordering the two calls only swaps which bug you get. One system has to be the source of truth: the database. That's the outbox.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>On entry the timeline draws: BEGIN, INSERT, COMMIT.</li>
+      <li>→ 1: the pod is killed after the commit; the send and the email never run.</li>
+      <li>→ 2: the two honest outcomes. → 3: the two bugs (red).</li>
+      <li>→ 4: the conclusion. Ask: "Which of these have we seen in production?"</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 06 · idempotency keys -->
+<section class="slide">
+  <div class="eyebrow">// idempotency at the edge</div>
+  <h2>The client retries too. Dedupe the request, not only the message.</h2>
+  <div class="split">
+    <div class="fx up" style="--d:.1s">
+<pre><span class="k">POST</span> /orders
+Idempotency-Key: 9f1c2a…
+
+transaction(db) {
+  idempotency.find(orgId, key)?.let {
+    <span class="k">return</span> it.storedResponse       <span class="c">// replay</span>
+  }
+  val order = orders.insert(…)
+  outbox.insert(<span class="s">"OrderCreated"</span>, …)
+  idempotency.insert(orgId, key, <span class="s">201</span>, order)
+}</pre>
+      <p>Unique on <code>(org_id, key)</code>. Two concurrent duplicates: one commits, the other hits the constraint and returns the stored response.</p>
+    </div>
+    <div class="grid" style="gap:14px;">
+      <div class="card step" data-step="1">
+        <h3>Why the outbox isn't enough</h3>
+        <p>The mobile client times out at 10 s and retries. The first request did commit. The outbox faithfully records two orders, and the consumer, deduping by event id, happily charges both.</p>
+      </div>
+      <div class="card step" data-step="2">
+        <h3>The client sends the key</h3>
+        <p>Generated once per user intent, reused on every retry of that intent. A new key per attempt defeats the point.</p>
+      </div>
+      <div class="card step" data-step="3">
+        <h3>Keep it for a while, then expire it</h3>
+        <p>Long enough to cover every client retry window, typically 24 hours. Same cleanup job as the outbox.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Consumer dedupe by event id protects against SQS redelivery. It does nothing when the API created two different events for one user action.</li>
+      <li>→ ×3 reveals the three cards. The next slide plays the retry out step by step.</li>
+      <li>If the stored response could hold sensitive data, store just enough to rebuild it (status + order id).</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 07 · idempotency sequence -->
+<section class="slide">
+  <div class="eyebrow">// the retry, step by step</div>
+  <h2 class="tightb">Same key, same answer: one order, however many retries</h2>
+  <svg class="dg" viewBox="0 0 1108 396">
+    <g class="fx fade">
+      <rect class="bx" x="90" y="0" width="160" height="40" rx="8"/>
+      <text class="t" x="170" y="26" text-anchor="middle">Client</text>
+      <rect class="bx hi" x="474" y="0" width="160" height="40" rx="8"/>
+      <text class="t" x="554" y="26" text-anchor="middle">API</text>
+      <rect class="bx" x="858" y="0" width="160" height="40" rx="8"/>
+      <text class="t" x="938" y="26" text-anchor="middle">Postgres</text>
+    </g>
+    <g class="fx fade" style="--d:.25s" stroke="#2f3340" stroke-dasharray="3 5" stroke-width="1.2">
+      <line x1="170" y1="40" x2="170" y2="394"/>
+      <line x1="554" y1="40" x2="554" y2="394"/>
+      <line x1="938" y1="40" x2="938" y2="394"/>
+    </g>
+
+    <g data-step="1">
+      <g class="fx fade">
+        <path class="w a" d="M170,82 L550,82" marker-end="url(#ahA)"/>
+        <text class="m" x="362" y="73" text-anchor="middle">POST /orders · key 9f1c</text>
+      </g>
+      <g class="fx fade" style="--d:.4s">
+        <path class="w" d="M554,120 L934,120" marker-end="url(#ah)"/>
+        <text class="s" x="746" y="111" text-anchor="middle">insert key + order + outbox</text>
+      </g>
+      <g class="fx fade" style="--d:.8s">
+        <path class="w g" d="M938,156 L558,156" marker-end="url(#ahG)"/>
+        <text class="m gt" x="746" y="147" text-anchor="middle">COMMIT ✓  order 1042</text>
+      </g>
+    </g>
+
+    <g data-step="2">
+      <path class="w r dash" d="M554,200 L300,200"/>
+      <text class="m rt" x="427" y="191" text-anchor="middle">201 Created</text>
+      <text x="288" y="206" text-anchor="middle" style="font-size:20px; fill:#ef6b6b; font-weight:600">✕</text>
+      <text class="s rt" x="180" y="228">client gave up at 10 s · response lost</text>
+    </g>
+
+    <g data-step="3">
+      <g class="fx fade">
+        <path class="w a" d="M170,272 L550,272" marker-end="url(#ahA)"/>
+        <text class="m" x="362" y="263" text-anchor="middle">retry · POST /orders · same key 9f1c</text>
+      </g>
+      <g class="fx fade" style="--d:.4s">
+        <path class="w" d="M554,306 L934,306" marker-end="url(#ah)"/>
+        <text class="s" x="746" y="297" text-anchor="middle">find(org, 9f1c)</text>
+      </g>
+      <g class="fx fade" style="--d:.8s">
+        <path class="w" d="M938,340 L558,340" marker-end="url(#ah)"/>
+        <text class="s" x="746" y="331" text-anchor="middle">found · order 1042</text>
+      </g>
+    </g>
+
+    <g data-step="4">
+      <path class="w g" d="M554,380 L174,380" marker-end="url(#ahG)"/>
+      <text class="m gt" x="362" y="371" text-anchor="middle">201 Created · order 1042 (stored)</text>
+      <rect class="bx good" x="640" y="358" width="380" height="36" rx="8"/>
+      <text class="t2" x="830" y="381" text-anchor="middle">One intent → one order, one event, one charge</text>
+    </g>
+  </svg>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: the first request commits (key, order, outbox in one transaction).</li>
+      <li>→ 2: the 201 is lost: the client timed out. From the client's view, nothing happened.</li>
+      <li>→ 3: the retry carries the same key; the API finds it.</li>
+      <li>→ 4: the stored response is replayed. No second order, no second outbox row.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 08 · the pipeline -->
+<section class="slide">
+  <div class="eyebrow">// the whole pipeline</div>
+  <h2 class="tightb">One durable row in the request, then at-least-once all the way down</h2>
+  <svg class="dg" viewBox="0 0 1108 305">
+    <!-- database band -->
+    <g class="fx fade" style="--d:.1s">
+      <rect x="40" y="120" width="1028" height="70" rx="10" fill="#0f1117" stroke="#2a2e39"/>
+      <text class="t" x="60" y="151">Postgres</text>
+      <text class="s" x="60" y="170">one database</text>
+      <rect class="bx" x="200" y="135" width="140" height="40" rx="6"/><text class="m" x="270" y="160" text-anchor="middle">idempotency_keys</text>
+      <rect class="bx" x="360" y="135" width="120" height="40" rx="6"/><text class="m" x="420" y="160" text-anchor="middle">orders</text>
+      <rect class="bx hi" x="500" y="135" width="140" height="40" rx="6"/><text class="m" x="570" y="160" text-anchor="middle">outbox</text>
+      <rect class="bx" x="900" y="135" width="140" height="40" rx="6"/><text class="m" x="970" y="160" text-anchor="middle">processed</text>
+    </g>
+    <!-- top row -->
+    <g class="fx fade" style="--d:.25s">
+      <rect class="bx" x="40" y="15" width="160" height="55" rx="8"/><text class="t" x="120" y="40" text-anchor="middle">Client</text><text class="s" x="120" y="58" text-anchor="middle">web · mobile</text>
+      <rect class="bx hi" x="300" y="15" width="180" height="55" rx="8"/><text class="t" x="390" y="40" text-anchor="middle">API</text><text class="s" x="390" y="58" text-anchor="middle">POST /orders</text>
+      <rect class="bx bad" x="720" y="15" width="140" height="55" rx="8"/><text class="t" x="790" y="40" text-anchor="middle">orders-dlq</text><text class="s" x="790" y="58" text-anchor="middle">alarm if not empty</text>
+      <rect class="bx" x="900" y="15" width="140" height="55" rx="8"/><text class="t" x="970" y="40" text-anchor="middle">Email vendor</text><text class="s" x="970" y="58" text-anchor="middle">sometimes slow</text>
+    </g>
+    <!-- bottom row -->
+    <g class="fx fade" style="--d:.4s">
+      <rect class="bx" x="500" y="240" width="140" height="55" rx="8"/><text class="t" x="570" y="265" text-anchor="middle">Relay</text><text class="s" x="570" y="283" text-anchor="middle">every pod · polls</text>
+      <rect class="bx" x="720" y="240" width="140" height="55" rx="8"/><text class="t" x="790" y="265" text-anchor="middle">SQS</text><text class="s" x="790" y="283" text-anchor="middle">orders-events</text>
+      <rect class="bx" x="900" y="240" width="140" height="55" rx="8"/><text class="t" x="970" y="265" text-anchor="middle">Consumer</text><text class="s" x="970" y="283" text-anchor="middle">own executor</text>
+    </g>
+    <!-- wires -->
+    <g class="fx fade" style="--d:.7s">
+      <path class="w" d="M200,42 L296,42" marker-end="url(#ah)"/>
+      <path class="w" d="M330,70 L330,100 L270,100 L270,131" marker-end="url(#ah)"/>
+      <path class="w" d="M420,70 L420,131" marker-end="url(#ah)"/>
+      <path class="w" d="M465,70 L465,100 L570,100 L570,131" marker-end="url(#ah)"/>
+      <path class="w" d="M570,175 L570,236" marker-end="url(#ah)"/>
+      <path class="w" d="M640,267 L716,267" marker-end="url(#ah)"/>
+      <path class="w" d="M860,267 L896,267" marker-end="url(#ah)"/>
+      <path class="w" d="M970,240 L970,179" marker-end="url(#ah)"/>
+      <path class="w" d="M1040,267 L1080,267 L1080,42 L1044,42" marker-end="url(#ah)"/>
+      <path class="w r dash" d="M790,240 L790,74" marker-end="url(#ahR)"/>
+      <text class="s rt" x="798" y="222">after 5 receives</text>
+    </g>
+
+    <g data-step="1">
+      <rect class="fx fade" style="--d:1.6s" x="194" y="129" width="452" height="52" rx="9" fill="none" stroke="#7092ff" stroke-width="2"/>
+      <circle class="pk" r="7"><animateMotion begin="indefinite" dur="1.6s" fill="freeze" path="M200,42 L390,42 L390,100 L570,100 L570,131"/></circle>
+    </g>
+    <g data-step="2">
+      <circle class="pk" r="7"><animateMotion begin="indefinite" dur="1.4s" fill="freeze" path="M570,175 L570,267 L716,267"/></circle>
+    </g>
+    <g data-step="3">
+      <circle class="pk" r="7"><animateMotion id="pm3" begin="indefinite" dur="1.2s" fill="freeze" path="M790,267 L970,267 L970,179"/></circle>
+      <circle class="pk g" r="7" opacity="0"><set attributeName="opacity" to="1" begin="pm3b.begin" fill="freeze"/><animateMotion id="pm3b" begin="pm3.end" dur="1.3s" fill="freeze" path="M970,267 L1080,267 L1080,42 L1044,42"/></circle>
+    </g>
+    <g data-step="4">
+      <circle class="pk r" r="7"><animateMotion begin="indefinite" dur="1.2s" fill="freeze" path="M790,240 L790,74"/></circle>
+      <rect class="fx pls" style="--d:1.1s" x="720" y="15" width="140" height="55" rx="8" fill="none" stroke="#ef6b6b" stroke-width="1.5"/>
+    </g>
+  </svg>
+  <div class="grid g4" style="margin-top:14px; gap:12px;">
+    <div class="card cap step" data-step="1"><div class="tag">① request</div><p>Key, order and outbox row in one transaction. Then 201.</p></div>
+    <div class="card cap step" data-step="2"><div class="tag">② relay</div><p>Claim a batch, commit, publish to SQS, mark sent.</p></div>
+    <div class="card cap step" data-step="3"><div class="tag">③ consumer</div><p>Dedupe in <code>processed</code>, work, commit, ack. Then the email.</p></div>
+    <div class="card cap step" data-step="4"><div class="tag" style="color:var(--bad)">④ poison message</div><p>Fails 5 receives, moves to the DLQ, the alarm pages.</p></div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>This is the map for the rest of the session; the next slides zoom into each box.</li>
+      <li>→ 1: the request writes the key, the order and the outbox row together (highlight).</li>
+      <li>→ 2: the relay picks the row up and publishes to SQS.</li>
+      <li>→ 3: the consumer dedupes and does the work, then the email goes out.</li>
+      <li>→ 4: a poison message: after maxReceiveCount it moves to the DLQ and the alarm fires.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 09 · transactional outbox -->
+<section class="slide">
+  <div class="eyebrow">// transactional outbox</div>
+  <h2>Write the event as a row in the same transaction. A relay sends it later.</h2>
+  <div class="grid g3">
+    <div class="card hi fx up" style="--d:.1s">
+      <div class="tag">01 · in the request</div>
+      <h3>One transaction</h3>
+<pre>transaction(db) {
+  orders.insert(order)
+  outbox.insert(
+    type = <span class="s">"OrderCreated"</span>,
+    payload = json(order.id),
+    org_id = order.orgId)
+}</pre>
+      <p>Both rows land or neither does.</p>
+    </div>
+    <div class="card fx up" style="--d:.3s">
+      <div class="tag">02 · the relay</div>
+      <h3>Claim, commit, publish, mark sent</h3>
+<pre><span class="c">-- short tx: claim a batch</span>
+UPDATE outbox SET claimed_until = …
+… FOR UPDATE SKIP LOCKED
+<span class="c">-- commit. no locks held now</span>
+<span class="c">-- publish each to SQS</span>
+UPDATE … SET sent_at = now()</pre>
+      <p>Runs on every pod. Crash after publish, before the update: the claim expires and it publishes again. At-least-once.</p>
+    </div>
+    <div class="card fx up" style="--d:.5s">
+      <div class="tag">03 · the consumer</div>
+      <h3>Dedupe by event id</h3>
+<pre>transaction(db) {
+  <span class="k">if</span> (processed
+      .insertIfAbsent(event.id))
+    doTheWork(event)
+}
+ack(message)</pre>
+      <p>The second delivery finds the id and skips. Work and dedupe commit together; the ack comes after.</p>
+    </div>
+  </div>
+  <p class="note fx fade" style="--d:.9s">Delete or archive sent rows on a schedule, or the outbox table becomes the biggest table in the database.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Three parts, three owners of correctness: the request makes it durable, the relay makes it delivered, the consumer makes it happen once.</li>
+      <li>Next slide zooms into the relay, because that's where the subtle bug lives.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 10 · relay detail -->
+<section class="slide">
+  <div class="eyebrow">// the relay</div>
+  <h2>Never hold a row lock across a network call. Claim, commit, then publish.</h2>
+  <div class="split">
+    <div class="fx up" style="--d:.1s">
+<pre><span class="c">-- 1 · claim (its own short transaction)</span>
+UPDATE outbox
+   SET claimed_until = now() + interval <span class="s">'30 seconds'</span>
+ WHERE id IN (
+   SELECT id FROM outbox
+    WHERE sent_at IS NULL
+      AND (claimed_until IS NULL
+           OR claimed_until &lt; now())
+    ORDER BY id LIMIT 100
+    FOR UPDATE SKIP LOCKED)
+RETURNING id, type, payload;
+<span class="c">-- commit</span>
+
+<span class="c">-- 2 · publish each to SQS, no locks held</span>
+<span class="c">-- 3 · mark what was actually sent</span>
+UPDATE outbox SET sent_at = now()
+ WHERE id = ANY(:published_ids);</pre>
+    </div>
+    <div class="grid" style="gap:12px;">
+      <div class="card step" data-step="1">
+        <h3>Same rule as the consumer</h3>
+        <p>Holding <code>FOR UPDATE</code> while SQS is slow ties up connections and blocks the cleanup job. The claim column replaces the long lock; an expired claim is how a crashed pod's batch gets picked up.</p>
+      </div>
+      <div class="card step" data-step="2">
+        <h3>Order is not preserved</h3>
+        <p>Ten pods publish ten batches in parallel. If order matters, carry a sequence in the payload or use FIFO with a group id.</p>
+      </div>
+      <div class="card step" data-step="3">
+        <h3>Polling is a choice</h3>
+        <p>CDC (Debezium, log tailing) is the other relay. More moving parts, lower latency. We poll because it's one table and one loop.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Walk the SQL top to bottom first. → ×3 reveals the three cards.</li>
+      <li>Claim duration must be longer than the slowest realistic publish of a batch; otherwise two pods publish the same batch more often (still safe, just noisy).</li>
+      <li>Partial batch failure: only mark the ids that were published. The rest wait for the claim to expire.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 11 · lock time -->
+<section class="slide">
+  <div class="eyebrow">// lock time, before and after</div>
+  <h2 class="tightb">The slow SQS call no longer sits inside the transaction</h2>
+  <div class="card" style="padding:18px 22px 10px;">
+    <svg class="dg" viewBox="0 0 1064 266">
+      <g class="grid-l">
+        <line x1="200" y1="10" x2="200" y2="210"/><line x1="347" y1="10" x2="347" y2="210"/>
+        <line x1="494" y1="10" x2="494" y2="210"/><line x1="641" y1="10" x2="641" y2="210"/>
+        <line x1="788" y1="10" x2="788" y2="210"/><line x1="935" y1="10" x2="935" y2="210"/>
+      </g>
+      <g>
+        <text class="s" x="200" y="230" text-anchor="middle">0</text>
+        <text class="s" x="347" y="230" text-anchor="middle">200 ms</text>
+        <text class="s" x="494" y="230" text-anchor="middle">400 ms</text>
+        <text class="s" x="641" y="230" text-anchor="middle">600 ms</text>
+        <text class="s" x="788" y="230" text-anchor="middle">800 ms</text>
+        <text class="s" x="935" y="230" text-anchor="middle">1000 ms</text>
+      </g>
+
+      <g data-step="1">
+        <text class="t" x="0" y="44">Before</text>
+        <text class="s" x="0" y="62">publish inside the tx</text>
+        <rect class="seg-a fx grow" x="200" y="28" width="29" height="34" rx="3"/>
+        <rect class="seg-w fx grow" style="--d:.25s; --dur:1.2s" x="229" y="28" width="735" height="34" rx="3"/>
+        <text class="s wt fx fade" style="--d:1s" x="596" y="50" text-anchor="middle">publish to SQS · slow today: 1 s</text>
+        <rect class="seg-a fx grow" style="--d:1.4s" x="964" y="28" width="29" height="34" rx="3"/>
+      </g>
+      <g data-step="2">
+        <rect class="seg-r fx grow" style="--dur:1.2s" x="200" y="68" width="793" height="10" rx="2"/>
+        <text class="s rt fx fade" style="--d:1s" x="596" y="96" text-anchor="middle">row locks held for the whole call · 1.08 s</text>
+      </g>
+      <g data-step="3">
+        <text class="t" x="0" y="134">After</text>
+        <text class="s" x="0" y="152">claim · commit · publish</text>
+        <rect class="seg-a fx grow" x="200" y="118" width="29" height="34" rx="3"/>
+        <rect class="seg-r fx grow" style="--d:.2s" x="200" y="158" width="29" height="10" rx="2"/>
+        <text class="s rt fx fade" style="--d:.3s" x="236" y="167">40 ms</text>
+        <rect class="seg-w fx grow" style="--d:.3s; --dur:1.2s" x="229" y="118" width="735" height="34" rx="3"/>
+        <text class="s wt fx fade" style="--d:1s" x="596" y="140" text-anchor="middle">publish to SQS · no locks held</text>
+        <rect class="seg-a fx grow" style="--d:1.4s" x="964" y="118" width="15" height="34" rx="3"/>
+        <rect class="seg-r fx grow" style="--d:1.5s" x="964" y="158" width="15" height="10" rx="2"/>
+        <text class="s rt fx fade" style="--d:1.6s" x="986" y="167">15 ms</text>
+      </g>
+      <g transform="translate(200,260)" class="fx fade" style="--d:.2s">
+        <rect x="0" y="-9" width="12" height="10" class="seg-a"/><text class="s" x="18" y="0">short transaction</text>
+        <rect x="170" y="-9" width="12" height="10" class="seg-w"/><text class="s" x="188" y="0">network call</text>
+        <rect x="310" y="-9" width="12" height="10" class="seg-r"/><text class="s" x="328" y="0">row locks held</text>
+      </g>
+    </svg>
+  </div>
+  <div class="card step" data-step="4" style="margin-top:14px; padding:14px 20px;">
+    <h3 style="font-size:17px">Crash right after the claim?</h3>
+    <p>Nothing is lost. The rows stay claimed until <code>claimed_until</code> passes (30 s), then any pod's next poll claims them and publishes again. Consumer dedupe makes the repeat harmless.</p>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: the old relay. One transaction wraps select, publish and update.</li>
+      <li>→ 2: the red bar is how long row locks are held: the whole slow SQS call.</li>
+      <li>→ 3: the fixed relay. Two tiny lock windows; the slow call holds nothing.</li>
+      <li>→ 4: the crash case. Timings are illustrative; the shape is the point.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 12 · the queue -->
+<section class="slide">
+  <div class="eyebrow">// the queue</div>
+  <h2>SQS delivers at least once. Everything else follows from that.</h2>
+  <div class="split">
+    <div class="fx up" style="--d:.1s">
+      <h3 style="color:var(--muted); font-weight:400; font-size:15px;">The message</h3>
+<pre>{
+  <span class="s">"id"</span>: <span class="s">"evt_7c1…"</span>,
+  <span class="s">"type"</span>: <span class="s">"OrderCreated"</span>,
+  <span class="s">"version"</span>: 1,
+  <span class="s">"org_id"</span>: <span class="s">"org_21a…"</span>,
+  <span class="s">"occurred_at"</span>: <span class="s">"2026-10-10T07:12:00Z"</span>,
+  <span class="s">"traceparent"</span>: <span class="s">"00-4bf9…-01"</span>,
+  <span class="s">"payload"</span>: { <span class="s">"order_id"</span>: <span class="s">"…"</span> }
+}</pre>
+      <p>An id to dedupe on, a type and version so consumers can evolve, the org so the consumer can scope its queries, the trace context so the trace continues, and ids rather than whole objects: the consumer reads current state from the database.</p>
+    </div>
+    <div>
+      <h3 style="color:var(--muted); font-weight:400; font-size:15px; margin-bottom:4px;">Four settings that matter</h3>
+      <div class="setting step" data-step="1"><code>visibility timeout</code><p>How long a message is hidden while one consumer works on it. Longer than the work, or a second consumer gets it mid-way.</p></div>
+      <div class="setting step" data-step="2"><code>maxReceiveCount</code><p>After this many failed attempts the message moves to the dead-letter queue instead of looping forever.</p></div>
+      <div class="setting step" data-step="3"><code>dead-letter queue</code><p>Where poison messages go. Alert when it is not empty; redrive after the fix.</p></div>
+      <div class="setting step" data-step="4"><code>long polling</code><p><code>WaitTimeSeconds 20</code>. Fewer empty receives, lower cost, faster pickup.</p></div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ ×4 reveals the four settings. The next slide shows the first two on a timeline.</li>
+      <li>Standard queues are unordered. If order matters: sequence in payload, or FIFO with a group id, and accept lower throughput.</li>
+      <li>traceparent in the message is what lets one trace span the API and the consumer (slide 24).</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 13 · visibility timeout timeline -->
+<section class="slide">
+  <div class="eyebrow">// visibility timeout and the DLQ</div>
+  <h2 class="tightb">Too short a timeout: the same message twice. Too many failures: the DLQ.</h2>
+  <div class="card" style="padding:16px 22px 8px;">
+    <svg class="dg" viewBox="0 0 1064 200">
+      <g class="grid-l">
+        <line x1="170" y1="6" x2="170" y2="178"/><line x1="315" y1="6" x2="315" y2="178"/>
+        <line x1="460" y1="6" x2="460" y2="178"/><line x1="605" y1="6" x2="605" y2="178"/>
+        <line x1="750" y1="6" x2="750" y2="178"/><line x1="895" y1="6" x2="895" y2="178"/>
+        <line x1="1040" y1="6" x2="1040" y2="178"/>
+      </g>
+      <g>
+        <text class="s" x="170" y="194" text-anchor="middle">0 s</text><text class="s" x="315" y="194" text-anchor="middle">15</text>
+        <text class="s" x="460" y="194" text-anchor="middle">30</text><text class="s" x="605" y="194" text-anchor="middle">45</text>
+        <text class="s" x="750" y="194" text-anchor="middle">60</text><text class="s" x="895" y="194" text-anchor="middle">75</text>
+        <text class="s" x="1040" y="194" text-anchor="middle">90</text>
+      </g>
+      <g class="fx fade">
+        <text class="t" x="0" y="34">message</text>
+        <text class="t" x="0" y="92">consumer A</text>
+        <text class="t" x="0" y="150">consumer B</text>
+      </g>
+      <g data-step="1">
+        <rect class="seg-n fx grow" x="170" y="16" width="19" height="28" rx="3"/>
+        <rect class="seg-a fx grow" style="--d:.15s; --dur:1s" x="189" y="16" width="290" height="28" rx="3"/>
+        <text class="s fx fade" style="--d:.8s; fill:#c9ccd4" x="334" y="35" text-anchor="middle">hidden · visibility timeout 30 s</text>
+        <rect class="seg-w fx grow" style="--d:.4s; --dur:1.4s" x="189" y="74" width="435" height="28" rx="3"/>
+        <text class="s wt fx fade" style="--d:1.2s" x="334" y="93" text-anchor="middle">handle() takes 45 s</text>
+        <text class="s fx fade" style="--d:1.6s" x="632" y="93">sends the email</text>
+      </g>
+      <g data-step="2">
+        <line x1="479" y1="4" x2="479" y2="178" stroke="#ef6b6b" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <text class="s rt" x="486" y="62">visible again at 30 s</text>
+        <rect class="seg-n fx grow" x="479" y="16" width="10" height="28" rx="3"/>
+        <rect class="seg-a fx grow" style="--d:.2s" x="489" y="16" width="290" height="28" rx="3"/>
+        <text class="s fx fade" style="--d:.8s; fill:#c9ccd4" x="634" y="35" text-anchor="middle">hidden again · B has it</text>
+        <rect class="seg-r fx grow" style="--d:.3s; --dur:1.4s" x="489" y="132" width="435" height="28" rx="3"/>
+        <text class="s rt fx fade" style="--d:1.1s" x="706" y="151" text-anchor="middle">same message · second email</text>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="3" style="margin-top:12px;">Set the visibility timeout above the p99 handling time, and dedupe anyway: it will happen during deploys and pauses.</p>
+  <div class="step" data-step="4" style="margin-top:16px;">
+    <div class="recv">
+      <span class="chip fx pop" style="--d:0s">receive 1 ✕</span><span class="arr">→</span>
+      <span class="chip fx pop" style="--d:.2s">receive 2 ✕</span><span class="arr">→</span>
+      <span class="chip fx pop" style="--d:.4s">receive 3 ✕</span><span class="arr">→</span>
+      <span class="chip fx pop" style="--d:.6s">receive 4 ✕</span><span class="arr">→</span>
+      <span class="chip fx pop" style="--d:.8s">receive 5 ✕</span><span class="arr">→</span>
+      <span class="chip bad fx pop" style="--d:1.05s">orders-dlq · alarm</span>
+      <span class="fx fade" style="--d:1.3s; font-family:var(--mono); font-size:12px; color:var(--muted); margin-left:6px; white-space:nowrap">maxReceiveCount = 5</span>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: consumer A receives the message; it hides for 30 s, but the work takes 45 s.</li>
+      <li>→ 2: at 30 s the message is visible again and consumer B takes it. Without dedupe: a second email.</li>
+      <li>→ 3: the fix. → 4: a message that always fails: five receives, then the DLQ and the alarm.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 14 · the consumer -->
+<section class="slide">
+  <div class="eyebrow">// the consumer</div>
+  <h2>Dedupe, do the work, commit, then ack. In that order, every time.</h2>
+  <div class="split">
+    <div class="fx up" style="--d:.1s">
+<pre><span class="k">for</span> (msg <span class="k">in</span> sqs.receive(batch = 10)) {
+  <span class="k">try</span> {
+    transaction(db) {
+      <span class="k">if</span> (!processed.insertIfAbsent(msg.id))
+        <span class="k">return</span>@transaction
+      handle(msg)   <span class="c">// small, scoped by msg.orgId</span>
+    }
+    sqs.delete(msg)
+  } <span class="k">catch</span> (e: Exception) {
+    logger.error(e) { <span class="s">"consumer failed id=${msg.id}"</span> }
+    <span class="c">// no delete: SQS redelivers after</span>
+    <span class="c">// the visibility timeout</span>
+  }
+}</pre>
+    </div>
+    <div class="grid tight" style="gap:10px;">
+      <div class="card step" data-step="1"><h3>One bad message must not stop the batch</h3><p>Catch per message, log with the throwable, move on. The DLQ catches the ones that never succeed.</p></div>
+      <div class="card step" data-step="2"><h3>Keep the transaction small</h3><p>No outside calls inside it. If handling means calling a vendor, write what you need, commit, then call; or write another outbox row.</p></div>
+      <div class="card step" data-step="3"><h3>Correct with N copies</h3><p>Ten pods run this loop at once. The dedupe table and the row locks keep them honest, not luck.</p></div>
+      <div class="card step" data-step="4"><h3>Its own executor, its own pool budget</h3><p>A consumer sharing the API's thread pool starves the API when the queue backs up. Name the executor; count its connections.</p></div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ ×4 reveals the cards. The next slide shows why the order (commit, then ack) matters.</li>
+      <li>Connection budget: API pool + consumer pool + relay pool, per pod, times pod count, must stay under the DB's max connections.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 15 · where can it crash -->
+<section class="slide">
+  <div class="eyebrow">// where can it crash?</div>
+  <h2 class="tightb">Ack first loses work. Commit, then ack, only repeats it.</h2>
+  <svg class="dg" viewBox="0 0 1108 300">
+    <g data-step="1">
+      <text class="m rt" x="0" y="20">ack first</text>
+      <g class="fx fade"><rect class="bx" x="0" y="34" width="130" height="50" rx="8"/><text class="t2" x="65" y="64" text-anchor="middle">receive</text></g>
+      <g class="fx fade" style="--d:.25s"><path class="w" d="M130,59 L166,59" marker-end="url(#ah)"/><rect class="bx bad" x="170" y="34" width="160" height="50" rx="8"/><text class="t2" x="250" y="64" text-anchor="middle">delete (ack)</text></g>
+      <g class="fx fade" style="--d:.5s"><path class="w" d="M330,59 L366,59"/></g>
+      <use href="#bolt" x="388" y="59" class="fx pop" style="--d:.65s"/>
+      <g class="fx fade" style="--d:.85s"><path class="w dash" d="M406,59 L440,59"/><rect class="bx ghost" x="444" y="34" width="190" height="50" rx="8"/><text class="t2 ft" x="539" y="64" text-anchor="middle" style="fill:#6b7180">handle() never runs</text></g>
+      <g class="fx fade" style="--d:1.1s">
+        <text class="t rt" x="664" y="56">Lost for good.</text>
+        <text class="s" x="664" y="76">No redelivery, no DLQ, no log line.</text>
+      </g>
+    </g>
+
+    <text class="m gt step" data-step="2" x="0" y="170">dedupe, commit, then ack</text>
+    <g data-step="2">
+      <g class="fx fade"><rect class="bx" x="0" y="184" width="110" height="50" rx="8"/><text class="t2" x="55" y="214" text-anchor="middle">receive</text></g>
+      <g class="fx fade" style="--d:.25s"><path class="w" d="M110,209 L136,209" marker-end="url(#ah)"/><rect class="bx hi" x="140" y="184" width="200" height="50" rx="8"/><text class="t2" x="240" y="206" text-anchor="middle">BEGIN · dedupe</text><text class="s" x="240" y="224" text-anchor="middle">handle()</text></g>
+      <g class="fx fade" style="--d:.5s"><path class="w" d="M340,209 L366,209" marker-end="url(#ah)"/><rect class="bx good" x="370" y="184" width="110" height="50" rx="8"/><text class="t2 gt" x="425" y="214" text-anchor="middle" style="fill:#5fcf9a">COMMIT</text></g>
+    </g>
+    <g data-step="3">
+      <path class="w fx fade" d="M480,209 L500,209"/>
+      <use href="#bolt" x="520" y="209" class="fx pop" style="--d:.1s"/>
+      <g class="fx fade" style="--d:.35s"><path class="w" d="M538,209 L556,209" marker-end="url(#ah)"/><rect class="bx" x="560" y="184" width="170" height="50" rx="8"/><text class="t2" x="645" y="206" text-anchor="middle">redelivered</text><text class="s" x="645" y="224" text-anchor="middle">after 30 s</text></g>
+      <g class="fx fade" style="--d:.65s"><path class="w" d="M730,209 L756,209" marker-end="url(#ah)"/><rect class="bx" x="760" y="184" width="160" height="50" rx="8"/><text class="t2" x="840" y="206" text-anchor="middle">dedupe hit</text><text class="s" x="840" y="224" text-anchor="middle">skip the work</text></g>
+      <g class="fx fade" style="--d:.95s"><path class="w" d="M920,209 L946,209" marker-end="url(#ah)"/><rect class="bx good" x="950" y="184" width="100" height="50" rx="8"/><text class="t2" x="1000" y="214" text-anchor="middle" style="fill:#5fcf9a">ack</text></g>
+      <g class="fx pop" style="--d:1.2s"><circle cx="1084" cy="209" r="15" fill="#121d18" stroke="#5fcf9a" stroke-width="1.5"/><text x="1084" y="215" text-anchor="middle" style="fill:#5fcf9a; font-size:16px; font-weight:600">✓</text></g>
+      <text class="s fx fade" style="--d:1.3s" x="1108" y="258" text-anchor="end">work done once · message gone</text>
+    </g>
+  </svg>
+  <p class="note step" data-step="4" style="margin-top:4px;">Crash before the commit: nothing happened, the message runs again. Crash after the commit: dedupe turns the repeat into a no-op. Only ack-first can lose work.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: ack first. The crash lands between the delete and the work. Gone.</li>
+      <li>→ 2: the right order: dedupe and work inside one transaction, then commit.</li>
+      <li>→ 3: crash before the ack. SQS redelivers, dedupe finds the id, skips, acks.</li>
+      <li>→ 4: the rule. Ask: "Where else could it crash, and what happens?" (before commit: rollback, rerun).</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 16 · slow dependency -->
+<section class="slide">
+  <div class="eyebrow">// when a dependency is slow</div>
+  <h2>Timeouts, retries, breakers, bulkheads. Four tools, one goal: fail fast and alone.</h2>
+  <div class="grid g2">
+    <div class="card fx up" style="--d:.1s"><h3>A timeout at every hop, each shorter than its caller's</h3><p>Client waits 10 s; API gives the vendor 3 s; the vendor call gives its connection 1 s. If the inner timeout is longer than the outer, the caller has given up while you are still working for nobody.</p></div>
+    <div class="card fx up" style="--d:.25s"><h3>Retry with backoff, jitter and a budget</h3><p>3 attempts, 200 ms × 2ⁿ, random jitter, only on errors that can succeed on retry (timeouts, 503s, not 400s). Only on calls that are safe to repeat.</p></div>
+    <div class="card fx up" style="--d:.4s"><h3>Circuit breaker: stop calling what's down</h3><p>After N failures in a window, fail immediately for a cooldown, then let one request through to test. The vendor gets room to recover; your threads aren't tied up waiting.</p></div>
+    <div class="card fx up" style="--d:.55s"><h3>Bulkhead: a pool per dependency</h3><p>The vendor call runs on its own small executor. When the vendor hangs, that executor fills up and the rest of the service keeps serving.</p></div>
+  </div>
+  <p class="note step" data-step="1">Little's law sizes the pools: requests in flight = arrival rate × time per request. 50 req/s at 200 ms each is 10 in flight; a 3 s vendor at the same rate needs 150. That number is why the vendor gets a bulkhead.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Slow is worse than down: down fails fast on its own, slow holds threads and connections until everything queues behind it.</li>
+      <li>→ reveals Little's law. Do the arithmetic out loud; slide 18 lets you play with it live.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 17 · timeouts + breaker -->
+<section class="slide">
+  <div class="eyebrow">// timeouts and breakers, drawn</div>
+  <h2 class="tightb">Each timeout inside its caller's. A breaker that knows when to stop.</h2>
+  <div class="grid g2">
+    <div class="card" style="padding:18px 20px 10px;">
+      <div class="tag">nested timeouts</div>
+      <svg class="dg" viewBox="0 0 500 262">
+        <g class="grid-l">
+          <line x1="120" y1="8" x2="120" y2="236"/><line x1="240" y1="8" x2="240" y2="236"/>
+          <line x1="360" y1="8" x2="360" y2="236"/><line x1="480" y1="8" x2="480" y2="236"/>
+        </g>
+        <text class="s" x="120" y="254" text-anchor="middle">0</text><text class="s" x="240" y="254" text-anchor="middle">5 s</text>
+        <text class="s" x="360" y="254" text-anchor="middle">10 s</text><text class="s" x="480" y="254" text-anchor="middle">15 s</text>
+        <g data-step="1">
+          <text class="t2" x="0" y="38">client</text>
+          <rect class="seg-a fx grow" style="--dur:.9s" x="120" y="22" width="240" height="26" rx="3"/>
+          <text class="m fx fade" style="--d:.8s" x="368" y="40">10 s</text>
+          <text class="t2" x="0" y="88">API → vendor</text>
+          <rect class="seg-a fx grow" style="--d:.4s" x="120" y="72" width="72" height="26" rx="3"/>
+          <text class="m fx fade" style="--d:.9s" x="200" y="90">3 s</text>
+          <text class="t2" x="0" y="138">connect</text>
+          <rect class="seg-a fx grow" style="--d:.7s" x="120" y="122" width="24" height="26" rx="3"/>
+          <text class="m fx fade" style="--d:1s" x="152" y="140">1 s</text>
+        </g>
+        <g data-step="2">
+          <line x1="360" y1="8" x2="360" y2="236" stroke="#9298a6" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <text class="s" x="366" y="166">client gave up</text>
+          <text class="t2 rt" x="0" y="200" style="fill:#ef6b6b">vendor (bad)</text>
+          <rect class="seg-w fx grow" style="--dur:1.3s" x="120" y="184" width="240" height="26" rx="3"/>
+          <rect class="seg-r fx grow" style="--d:1.1s; --dur:.6s" x="360" y="184" width="120" height="26" rx="3"/>
+          <text class="s rt fx fade" style="--d:1.5s" x="420" y="230" text-anchor="middle">5 s for nobody</text>
+        </g>
+      </svg>
+    </div>
+    <div class="card step" data-step="3" style="padding:18px 20px 10px;">
+      <div class="tag">circuit breaker</div>
+      <svg class="dg" viewBox="0 0 500 262">
+        <path class="w" d="M150,58 L350,58" marker-end="url(#ah)"/>
+        <text class="s" x="250" y="48" text-anchor="middle">N failures in a window</text>
+        <path class="w" d="M398,112 L300,180" marker-end="url(#ah)"/>
+        <text class="s" x="390" y="138">cooldown</text><text class="s" x="390" y="153">elapsed</text>
+        <path class="w" d="M200,180 L102,112" marker-end="url(#ah)"/>
+        <text class="s" x="128" y="166" text-anchor="end">probe succeeds</text>
+        <path class="w" d="M296,214 Q 500,250 452,118" marker-end="url(#ah)"/>
+        <text class="s" x="496" y="250" text-anchor="end">probe fails</text>
+
+        <circle class="fx cyc loop" style="--d:0s" cx="100" cy="70" r="46" fill="#5fcf9a" stroke="#5fcf9a"/>
+        <text class="t" x="100" y="68" text-anchor="middle">CLOSED</text>
+        <text class="s" x="100" y="86" text-anchor="middle">calls flow</text>
+        <circle class="fx cyc loop" style="--d:-4s" cx="400" cy="70" r="46" fill="#ef6b6b" stroke="#ef6b6b"/>
+        <text class="t" x="400" y="68" text-anchor="middle">OPEN</text>
+        <text class="s" x="400" y="86" text-anchor="middle">fail fast</text>
+        <circle class="fx cyc loop" style="--d:-2s" cx="250" cy="200" r="46" fill="#f0a35e" stroke="#f0a35e"/>
+        <text class="t" x="250" y="198" text-anchor="middle">HALF-OPEN</text>
+        <text class="s" x="250" y="216" text-anchor="middle">one probe</text>
+      </svg>
+    </div>
+  </div>
+  <p class="note step" data-step="3" style="margin-top:14px;">While the breaker is open, return the fallback right away. A breaker that waits for a timeout to fail isn't saving anything.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: the three nested timeouts grow in: 10 s ⊃ 3 s ⊃ 1 s.</li>
+      <li>→ 2: the bad case. An inner 15 s timeout keeps working 5 s after the client left.</li>
+      <li>→ 3: the breaker. The highlight cycles closed → open → half-open to show the loop.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 18 · bulkhead + Little's law -->
+<section class="slide">
+  <div class="eyebrow">// bulkheads, visualized</div>
+  <h2 class="tightb">A slow vendor should fill only its own pool</h2>
+  <div class="grid g2" style="gap:14px;">
+    <div class="card step" data-step="1" style="padding:16px 20px;">
+      <div class="tag">one shared pool · 20 threads</div>
+      <div class="slots" data-n="20" data-fx="fillo" data-stagger="0.07" style="margin-top:8px"></div>
+      <div class="waiting">
+        <span class="chip bad fx pop" style="--d:1.6s">GET /health ⏳</span>
+        <span class="chip bad fx pop" style="--d:1.75s">GET /me ⏳</span>
+        <span class="chip bad fx pop" style="--d:1.9s">POST /orders ⏳</span>
+      </div>
+      <p class="fx fade" style="--d:2.1s; margin-top:10px; font-size:14px; line-height:1.45">The vendor hangs, every thread waits on it, <code>/health</code> times out, and Kubernetes restarts a healthy pod.</p>
+    </div>
+    <div class="card step" data-step="2" style="padding:16px 20px;">
+      <div class="tag">a pool per dependency · vendor 5 + API 15</div>
+      <div class="pool-row" style="margin-top:8px">
+        <div>
+          <div class="pool-lbl">vendor</div>
+          <div class="slots" data-n="5" data-fx="fillo" data-stagger="0.1" style="grid-template-columns:repeat(3,28px)"></div>
+        </div>
+        <div>
+          <div class="pool-lbl">API</div>
+          <div class="slots" data-n="15" data-fx="pulse loop" data-random="1" style="grid-template-columns:repeat(8,28px)"></div>
+        </div>
+      </div>
+      <div class="waiting">
+        <span class="chip good fx pop" style="--d:.7s">GET /health 12 ms</span>
+        <span class="chip warn fx pop" style="--d:.85s; border-color:#6b4a26; color:#f0a35e; background:#221a12">vendor call → 503 fast</span>
+      </div>
+      <p class="fx fade" style="--d:1s; margin-top:10px; font-size:14px; line-height:1.45">When the vendor pool is full, vendor calls fail fast. Everything else keeps serving.</p>
+    </div>
+  </div>
+  <div class="card step interactive" data-step="3" style="margin-top:14px; padding:14px 22px;">
+    <div class="calc">
+      <div>
+        <div class="tag">Little's law · try it</div>
+        <label>arrival rate<input type="range" id="llRate" min="10" max="200" step="10" value="50"><output id="llRateOut">50 req/s</output></label>
+        <label>time per request<input type="range" id="llLat" min="50" max="5000" step="50" value="3000"><output id="llLatOut">3000 ms</output></label>
+      </div>
+      <div>
+        <div class="big"><span id="llInflight">150</span><small>requests in flight</small></div>
+        <div class="meter"><div class="fill" id="llFill"></div><div class="cap" id="llCap"></div></div>
+        <div class="verdict" id="llVerdict"></div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: one shared pool. Slots fill with slow vendor calls one by one; then API requests pile up behind them.</li>
+      <li>→ 2: split pools. The vendor's 5 slots fill; the API's 15 keep cycling (busy, free, busy).</li>
+      <li>→ 3: the calculator. Drag the sliders: 50 req/s × 200 ms = 10 (fits); 50 req/s × 3 s = 150 (doesn't). The white mark is a pool of 20.</li>
+      <li>The sliders don't change slides; click outside them or use the keyboard to move on.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 19 · fine print -->
+<section class="slide">
+  <div class="eyebrow">// the fine print</div>
+  <h2 class="tightb">Retry in one place, pass the deadline down, and decide what "failing" returns.</h2>
+  <div class="card" style="margin-bottom:14px; padding:16px 22px;">
+    <div style="display:grid; grid-template-columns: 360px 1fr; gap:30px; align-items:center;">
+      <div>
+        <h3>Retry amplification</h3>
+        <p>Three layers, each retrying 3 times, turn one user click into <b><span data-count="27">27</span> calls</b> on a vendor that is already struggling. Retry at one layer, usually the one closest to the dependency.</p>
+      </div>
+      <svg class="dg" viewBox="0 0 640 196" data-fanout></svg>
+    </div>
+  </div>
+  <div class="grid g2">
+    <div class="card step" data-step="1">
+      <h3>Propagate the deadline, not a fixed timeout</h3>
+      <p>If the client gave you 10 s and 7 s are gone, the vendor call gets what's left minus a margin, not its usual 3 s. Pass the deadline in a header; check it before each retry.</p>
+    </div>
+    <div class="card step" data-step="2">
+      <h3>Decide what failing fast returns</h3>
+      <p>A cached or stale answer, a reduced feature, or "accepted, we'll finish it later" (a 202 and an outbox row). An error is the last option, not the default.</p>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>On entry the fan-out tree grows level by level: 1 → 3 → 9 → 27.</li>
+      <li>→ 1: deadlines. → 2: degradation; "accepted, later" connects back to the outbox.</li>
+      <li>Retry budgets help too: allow retries only while they're under ~10% of calls to that dependency.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 20 · jitter -->
+<section class="slide">
+  <div class="eyebrow">// backoff and jitter</div>
+  <h2 class="tightb">Without jitter, retries arrive in lockstep. Jitter spreads the herd.</h2>
+  <div class="grid g2">
+    <div class="card step" data-step="1" style="padding:16px 20px 8px;">
+      <div class="tag">no jitter · retry at 200 ms × 2ⁿ</div>
+      <svg class="dg" viewBox="0 0 500 236" data-jitter="lockstep">
+        <g class="step" data-step="3">
+          <line x1="40" y1="149" x2="492" y2="149" stroke="#f0a35e" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text class="s wt" x="492" y="142" text-anchor="end">vendor capacity</text>
+        </g>
+      </svg>
+    </div>
+    <div class="card step" data-step="2" style="padding:16px 20px 8px;">
+      <div class="tag">full jitter · random(0, 200 ms × 2ⁿ)</div>
+      <svg class="dg" viewBox="0 0 500 236" data-jitter="jitter">
+        <g class="step" data-step="3">
+          <line x1="40" y1="149" x2="492" y2="149" stroke="#f0a35e" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text class="s wt" x="492" y="142" text-anchor="end">vendor capacity</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+  <p class="note step" data-step="3">Simulated: 200 clients fail at the same moment and retry 3 times each. The same 600 retries; after the first burst, the peak drops from 200 to <b id="jPeak">–</b> per 50 ms. Red bars are over capacity.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: lockstep retries hit at 0.2 s, 0.6 s and 1.4 s, all 200 at once, every time.</li>
+      <li>→ 2: the same retries with full jitter spread out across the window.</li>
+      <li>→ 3: the capacity line and the numbers. This is a small simulation computed in the page, not production data.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 21 · backpressure -->
+<section class="slide">
+  <div class="eyebrow">// backpressure</div>
+  <h2 class="tightb">Say no early: a fast 429 beats a slow yes</h2>
+  <div class="grid" style="grid-template-columns: 1.1fr 1fr; gap: 34px; align-items:start;">
+    <div class="card" style="padding:16px 18px 8px;">
+      <div class="tag">p99 latency vs load · illustrative, replace with your k6 run</div>
+      <svg class="dg" viewBox="0 0 540 320">
+        <g class="grid-l">
+          <line x1="60" y1="20" x2="520" y2="20"/><line x1="60" y1="110" x2="520" y2="110"/>
+          <line x1="60" y1="200" x2="520" y2="200"/><line x1="60" y1="290" x2="520" y2="290"/>
+        </g>
+        <text class="s" x="52" y="294" text-anchor="end">0</text><text class="s" x="52" y="204" text-anchor="end">1 s</text>
+        <text class="s" x="52" y="114" text-anchor="end">2 s</text><text class="s" x="52" y="24" text-anchor="end">3 s</text>
+        <text class="s" x="60" y="310" text-anchor="middle">0</text><text class="s" x="175" y="310" text-anchor="middle">100</text>
+        <text class="s" x="290" y="310" text-anchor="middle">200</text><text class="s" x="405" y="310" text-anchor="middle">300</text>
+        <text class="s" x="520" y="310" text-anchor="end">400 req/s</text>
+        <g data-step="1">
+          <polyline class="fx draw" pathLength="1" style="--dur:1.6s" fill="none" stroke="#ef6b6b" stroke-width="2.5"
+            points="60,279 175,279 290,277 336,275 371,263 405,227 428,173 451,92 463,20"/>
+          <text class="s rt fx fade" style="--d:1.5s" x="448" y="34" text-anchor="end">unbounded queue</text>
+        </g>
+        <g data-step="2">
+          <line x1="336" y1="20" x2="336" y2="290" stroke="#9298a6" stroke-dasharray="4 4"/>
+          <text class="s" x="330" y="140" text-anchor="end">the knee · 240 req/s</text>
+          <text class="s" x="330" y="156" text-anchor="end">DB pool (20) saturated</text>
+        </g>
+        <g data-step="3">
+          <rect class="fx fade" x="359" y="20" width="161" height="270" fill="#f0a35e" fill-opacity=".07"/>
+          <text class="s wt fx fade" style="--d:.3s" x="492" y="116" text-anchor="middle">429s</text>
+          <text class="s wt fx fade" style="--d:.3s" x="492" y="132" text-anchor="middle">Retry-After</text>
+          <polyline class="fx draw" pathLength="1" style="--dur:1.4s; --d:.2s" fill="none" stroke="#5fcf9a" stroke-width="2.5"
+            points="60,279 175,279 290,277 336,275 359,274 405,274 520,273"/>
+          <text class="s gt fx fade" style="--d:1.4s" x="515" y="262" text-anchor="end">bounded · p99 stays flat</text>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <p>A queue with no bound grows until the pod runs out of memory. Then everything in it is lost at once.</p>
+      <p style="margin-top:14px;">Bounded executors and bounded queues. When full, reject immediately with <code>429</code> or <code>503</code> and a <code>Retry-After</code>. A fast no is cheaper for everyone than a slow yes that times out.</p>
+      <p style="margin-top:14px;">Load-test with k6: ramp up, find the point where latency jumps, and name the limit that caused it. That number goes in the runbook.</p>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: without a limit, latency is flat until the knee, then goes vertical.</li>
+      <li>→ 2: name the knee and the resource behind it (here: the DB pool).</li>
+      <li>→ 3: with a bound, requests over the limit get a fast 429 and latency for the rest stays flat.</li>
+      <li>Swap the curve for a real k6 run of your service if you have one.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 22 · graceful shutdown -->
+<section class="slide">
+  <div class="eyebrow">// graceful shutdown</div>
+  <h2 class="tightb">Leave cleanly: every deploy is a shutdown</h2>
+  <div class="card" style="padding:16px 22px 8px;">
+    <svg class="dg" viewBox="0 -14 1064 302">
+      <g class="grid-l">
+        <line x1="190" y1="4" x2="190" y2="262"/><line x1="324" y1="4" x2="324" y2="262"/>
+        <line x1="458" y1="4" x2="458" y2="262"/><line x1="592" y1="4" x2="592" y2="262"/>
+        <line x1="726" y1="4" x2="726" y2="262"/><line x1="860" y1="4" x2="860" y2="262"/>
+        <line x1="994" y1="4" x2="994" y2="262"/>
+      </g>
+      <g>
+        <text class="s" x="190" y="280" text-anchor="middle">0 s</text><text class="s" x="324" y="280" text-anchor="middle">5</text>
+        <text class="s" x="458" y="280" text-anchor="middle">10</text><text class="s" x="592" y="280" text-anchor="middle">15</text>
+        <text class="s" x="726" y="280" text-anchor="middle">20</text><text class="s" x="860" y="280" text-anchor="middle">25</text>
+        <text class="s" x="994" y="280" text-anchor="middle">30</text>
+      </g>
+      <g class="fx fade">
+        <text class="t2" x="0" y="31">Kubernetes</text>
+        <text class="t2" x="0" y="73">readiness</text>
+        <text class="t2" x="0" y="115">HTTP server</text>
+        <text class="t2" x="0" y="157">SQS consumer</text>
+        <text class="t2" x="0" y="199">outbox relay</text>
+        <text class="t2" x="0" y="241">DB pool · process</text>
+      </g>
+      <g data-step="1">
+        <circle cx="190" cy="27" r="6" fill="#7092ff"/>
+        <text class="m" x="200" y="6">SIGTERM</text>
+        <rect class="seg-n fx grow" style="--d:.2s" x="196" y="14" width="128" height="26" rx="3"/>
+        <text class="s fx fade" style="--d:.7s" x="330" y="31">preStop sleep 5 s · endpoints update</text>
+        <rect class="seg-r fx grow" style="--d:.3s; --dur:1s" x="190" y="56" width="254" height="26" rx="3"/>
+        <text class="s rt fx fade" style="--d:.9s" x="452" y="73">not ready: no new traffic routed</text>
+      </g>
+      <g data-step="2">
+        <rect class="seg-a fx grow" x="190" y="98" width="134" height="26" rx="3"/>
+        <text class="s fx fade" style="--d:.4s; fill:#c9ccd4" x="257" y="115" text-anchor="middle">serving stragglers</text>
+        <rect class="seg-w fx grow" style="--d:.5s" x="324" y="98" width="54" height="26" rx="3"/>
+        <text class="s fx fade" style="--d:.8s" x="386" y="115">drain in-flight, then stop</text>
+        <rect class="seg-w fx grow" style="--d:.2s; --dur:1s" x="190" y="140" width="214" height="26" rx="3"/>
+        <text class="s fx fade" style="--d:.9s" x="412" y="157">stop receiving, finish the current batch</text>
+        <rect class="seg-w fx grow" style="--d:.3s" x="190" y="182" width="40" height="26" rx="3"/>
+        <text class="s fx fade" style="--d:.7s" x="238" y="199">stop claiming, publish what's claimed</text>
+      </g>
+      <g data-step="3">
+        <rect class="seg-a fx grow" x="404" y="224" width="27" height="26" rx="3"/>
+        <circle class="fx pop" style="--d:.4s" cx="444" cy="237" r="7" fill="#5fcf9a"/>
+        <text class="m gt fx fade" style="--d:.5s" x="458" y="242">close pool · exit 0 at 9.5 s</text>
+        <line x1="994" y1="4" x2="994" y2="262" stroke="#ef6b6b" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text class="s rt" x="986" y="100" text-anchor="end">SIGKILL would arrive here</text>
+        <text class="s" x="986" y="116" text-anchor="end">terminationGracePeriodSeconds 30</text>
+        <line class="fx play" style="--to:254px; --dur:2.4s; --d:.2s" x1="190" y1="4" x2="190" y2="262" stroke="#f2f3f6" stroke-width="2"/>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="3" style="margin-top:12px;">Anything still running at 30 s is cut off: dropped requests, half-processed messages (dedupe saves you), claims that sit until they expire.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: SIGTERM. Readiness goes red first; a short preStop sleep lets the endpoints update before the server stops.</li>
+      <li>→ 2: each loop drains: HTTP finishes in-flight requests, the consumer finishes its batch, the relay publishes what it claimed.</li>
+      <li>→ 3: close the pool, exit 0. The playhead shows it finishing well before SIGKILL at 30 s.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 23 · observability -->
+<section class="slide">
+  <div class="eyebrow">// observability</div>
+  <h2>Logs to explain, metrics to detect, traces to locate. Alerts page on symptoms.</h2>
+  <div class="grid g3">
+    <div class="card fx up" style="--d:.1s">
+      <div class="tag">logs</div>
+      <p>Structured JSON, one event per line. Every line carries <code>request_id</code>, <code>org_id</code>, <code>user_id</code> from the MDC. Errors log the throwable. No tokens, no PII you don't need.</p>
+      <p style="color:var(--text);">Answers: what happened to this request?</p>
+    </div>
+    <div class="card fx up" style="--d:.25s">
+      <div class="tag">metrics</div>
+      <p>Per endpoint and per consumer: rate, errors, duration as p50/p95/p99. Plus saturation: pool in use, executor queue depth, queue age, DLQ size, <b>outbox lag</b>.</p>
+      <p style="color:var(--text);">Answers: is the service healthy right now?</p>
+    </div>
+    <div class="card fx up" style="--d:.4s">
+      <div class="tag">traces</div>
+      <p>One trace id across the API, the database call, the vendor call and the consumer that picks up the event. OpenTelemetry, propagated in headers <b>and in the message</b>.</p>
+      <p style="color:var(--text);">Answers: where did the time go?</p>
+    </div>
+  </div>
+  <div class="grid g2" style="margin-top:16px;">
+    <div class="card hi step" data-step="1">
+      <h3>Page on symptoms, not causes</h3>
+      <p>Error rate over 1% for 5 minutes, p99 over the SLO, DLQ not empty, queue age over 10 minutes, <b>oldest unsent outbox row over 5 minutes</b>. Not "CPU is 80%".</p>
+    </div>
+    <div class="card step" data-step="2">
+      <h3>Every alert has a runbook and a person</h3>
+      <p>An alert nobody acts on gets muted within a month. Fewer alerts, each one real. SLO burn-rate alerts beat fixed thresholds once you have SLOs.</p>
+    </div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: what pages. Outbox lag is the answer to the 3 a.m. graph: when the relay dies, the queue is empty and healthy; only the outbox table shows the problem.</li>
+      <li>Metric: <code>now() - min(created_at) where sent_at is null</code>. Cheap query with a partial index on unsent rows.</li>
+      <li>→ 2: runbooks and owners.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 24 · one trace -->
+<section class="slide">
+  <div class="eyebrow">// one trace, end to end</div>
+  <h2 class="tightb">Where the 4.2 seconds went</h2>
+  <div class="card" style="padding:16px 22px 8px;">
+    <svg class="dg" viewBox="0 0 1064 330">
+      <g class="grid-l">
+        <line x1="290" y1="4" x2="290" y2="304"/><line x1="465" y1="4" x2="465" y2="304"/>
+        <line x1="640" y1="4" x2="640" y2="304"/><line x1="815" y1="4" x2="815" y2="304"/>
+        <line x1="990" y1="4" x2="990" y2="304"/>
+      </g>
+      <g>
+        <text class="s" x="290" y="322" text-anchor="middle">0</text><text class="s" x="465" y="322" text-anchor="middle">1 s</text>
+        <text class="s" x="640" y="322" text-anchor="middle">2 s</text><text class="s" x="815" y="322" text-anchor="middle">3 s</text>
+        <text class="s" x="990" y="322" text-anchor="middle">4 s</text>
+      </g>
+      <g data-step="1">
+        <text class="t2" x="0" y="25">api · POST /orders</text>
+        <rect class="seg-a fx grow" x="290" y="10" width="32" height="20" rx="3"/>
+        <text class="s fx fade" style="--d:.4s" x="328" y="25">180 ms</text>
+        <text class="s" x="18" y="58" style="fill:#c9ccd4">db · insert key, order, outbox</text>
+        <rect class="seg-n fx grow" style="--d:.2s" x="294" y="43" width="7" height="20" rx="2"/>
+        <text class="s" x="18" y="91" style="fill:#c9ccd4">db · commit</text>
+        <rect class="seg-n fx grow" style="--d:.35s" x="301" y="76" width="4" height="20" rx="2"/>
+      </g>
+      <g data-step="2">
+        <line x1="322" y1="124" x2="496" y2="124" stroke="#6b7180" stroke-dasharray="2 4"/>
+        <text class="s" x="492" y="113" text-anchor="end">waits for the next poll · 1.0 s</text>
+        <text class="t2" x="0" y="129">relay · claim + publish</text>
+        <rect class="seg-a fx grow" x="500" y="114" width="11" height="20" rx="3"/>
+        <text class="s fx fade" style="--d:.3s" x="518" y="129">60 ms</text>
+        <text class="s" x="18" y="162" style="fill:#c9ccd4">sqs · SendMessageBatch</text>
+        <rect class="seg-n fx grow" style="--d:.2s" x="503" y="147" width="7" height="20" rx="2"/>
+        <text class="t2" x="0" y="195">sqs · in queue</text>
+        <rect class="seg-n fx grow" style="--d:.35s" x="511" y="180" width="5" height="20" rx="2"/>
+        <text class="s fx fade" style="--d:.5s" x="522" y="195">30 ms</text>
+      </g>
+      <g data-step="3">
+        <text class="t2" x="0" y="228">consumer · OrderCreated</text>
+        <rect class="seg-a fx grow" style="--dur:1.2s" x="516" y="213" width="509" height="20" rx="3"/>
+        <text class="s fx fade" style="--d:1.1s" x="1030" y="228">2.91 s</text>
+        <text class="s" x="18" y="261" style="fill:#c9ccd4">db · dedupe + work</text>
+        <rect class="seg-n fx grow" style="--d:.2s" x="517" y="246" width="7" height="20" rx="2"/>
+        <text class="s" x="18" y="294" style="fill:#f0a35e">email-vendor · POST /send</text>
+        <rect class="seg-w fx grow" style="--d:.4s; --dur:1.2s" x="526" y="279" width="495" height="20" rx="3"/>
+        <text class="s wt fx fade" style="--d:1.5s" x="773" y="294" text-anchor="middle">2.83 s · the time went here</text>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="4" style="margin-top:12px;">One trace id from the POST to the email, because <code>traceparent</code> rides in the SQS message attributes. Without it, this is two unrelated traces and a guess.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>→ 1: the request: 180 ms, two DB spans. The user got their 201 here.</li>
+      <li>→ 2: the async hop: a 1 s wait for the relay's next poll, the publish, a short time in the queue.</li>
+      <li>→ 3: the consumer, and the slow vendor call inside it: that's where the time went.</li>
+      <li>→ 4: why it's one trace. Numbers are illustrative; in the live part, open a real trace from the repo.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 25 · live -->
+<section class="slide">
+  <div class="eyebrow">// live in the repo · 30 min</div>
+  <h2>One event from outbox to consumer, then the dashboards of a real incident</h2>
+  <table>
+    <tr><th>#</th><th>Step</th><th>Point out</th></tr>
+    <tr class="fx fade" style="--d:.1s"><td>1</td><td>The outbox write</td><td>Inside the same transaction as the business row. The idempotency key check.</td></tr>
+    <tr class="fx fade" style="--d:.2s"><td>2</td><td>The relay</td><td>Claim, commit, publish, mark sent. Batch size, what happens on a publish failure.</td></tr>
+    <tr class="fx fade" style="--d:.3s"><td>3</td><td>The consumer</td><td>Dedupe, transaction, ack order. Its executor and pool budget.</td></tr>
+    <tr class="fx fade" style="--d:.4s"><td>4</td><td>Queue config in Terraform</td><td>Visibility timeout, <code>maxReceiveCount</code>, the DLQ and its alarm.</td></tr>
+    <tr class="fx fade" style="--d:.5s"><td>5</td><td>The dashboards</td><td>RED per endpoint, queue age, DLQ, pool saturation, outbox lag. The alert rules.</td></tr>
+    <tr class="fx fade" style="--d:.6s"><td>6</td><td>The incident, replayed</td><td>Back to the 3 a.m. graph. Find the first sign, find the cause. What would have caught it earlier?</td></tr>
+  </table>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Have the repo, Terraform and dashboards open in tabs before the session starts.</li>
+      <li>Follow one real trace id from the POST through the consumer to make step 5 concrete.</li>
+      <li>Step 6: let the audience drive. Ask them where to look next. Then come back to the next slide.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 26 · graph answered -->
+<section class="slide">
+  <div class="eyebrow">// 03:07 a.m., answered</div>
+  <h2>The relay stopped at the deploy. The right alert would have paged in 5 minutes.</h2>
+  <div class="card" style="padding:22px 26px 14px;">
+    <svg class="dg" viewBox="0 0 1060 300" role="img" aria-label="The same graph with the outbox lag alert marked at 02:15 and customer reports at 03:07">
+      <g class="grid-l">
+        <line x1="60" y1="30" x2="1040" y2="30"/><line x1="60" y1="100" x2="1040" y2="100"/>
+        <line x1="60" y1="170" x2="1040" y2="170"/><line x1="60" y1="240" x2="1040" y2="240"/>
+      </g>
+      <g>
+        <text class="s" x="50" y="244" text-anchor="end">0</text><text class="s" x="50" y="174" text-anchor="end">2k</text>
+        <text class="s" x="50" y="104" text-anchor="end">4k</text><text class="s" x="50" y="34" text-anchor="end">6k</text>
+        <text class="s" x="60" y="268">00:00</text><text class="s" x="305" y="268">01:00</text>
+        <text class="s" x="550" y="268">02:00</text><text class="s" x="795" y="268">03:00</text>
+        <text class="s" x="1000" y="268">03:50</text>
+      </g>
+      <line x1="590" y1="24" x2="590" y2="240" stroke="#f0a35e" stroke-dasharray="4 5" stroke-width="1.2"/>
+      <text class="s wt" x="584" y="44" text-anchor="end">02:10 · deploy</text>
+      <polyline class="fx draw" pathLength="1" style="--dur:.8s" fill="none" stroke="#7092ff" stroke-width="2.5"
+        points="60,236 120,233 180,237 240,232 300,235 360,231 420,236 480,233 540,236 590,234 640,238 700,238 760,238 820,238 880,238 940,238 1040,238"/>
+      <polyline class="fx draw" pathLength="1" style="--dur:.8s; --d:.3s" fill="none" stroke="#ef6b6b" stroke-width="2.5"
+        points="60,239 300,239 590,239 640,226 700,205 760,182 820,160 880,136 940,113 1000,90 1040,74"/>
+      <g data-step="1">
+        <line class="fx draw" pathLength="1" x1="611" y1="240" x2="611" y2="24" stroke="#5fcf9a" stroke-width="2"/>
+        <text class="m gt" x="604" y="124" text-anchor="end">02:15 · paged</text>
+        <text class="s" x="604" y="141" text-anchor="end">oldest unsent row &gt; 5 min</text>
+      </g>
+      <g data-step="2">
+        <line class="fx draw" pathLength="1" x1="824" y1="240" x2="824" y2="24" stroke="#ef6b6b" stroke-width="2"/>
+        <text class="m rt" x="832" y="28">03:07 · customers noticed</text>
+        <path class="w g" d="M615,78 L820,78" marker-start="url(#ahG)" marker-end="url(#ahG)"/>
+        <text class="m gt" x="717" y="70" text-anchor="middle">52 min earlier</text>
+      </g>
+      <g style="font-size:14px">
+        <circle cx="80" cy="294" r="5" fill="#7092ff"/><text x="92" y="299" style="font-size:14px">SQS queue depth</text>
+        <circle cx="260" cy="294" r="5" fill="#ef6b6b"/><text x="272" y="299" style="font-size:14px">outbox rows with sent_at IS NULL</text>
+        <circle cx="560" cy="294" r="5" fill="#5fcf9a"/><text x="572" y="299" style="font-size:14px">new alert: outbox lag</text>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="3">The fix was one query and one alert rule. The lesson is the pattern: every async hop needs its own "is work piling up here?" signal.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Same graph as slide 3. Ask: "Now that you've seen the pipeline, what happened?" Then reveal.</li>
+      <li>→ 1: the outbox-lag alert fires 5 minutes after the deploy.</li>
+      <li>→ 2: customers noticed at 03:07; the alert would have been 52 minutes earlier.</li>
+      <li>→ 3: the takeaway. Illustrative incident; swap in your own if you used a real one on slide 3.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 27 · numbers -->
+<section class="slide">
+  <div class="eyebrow">// the numbers to remember</div>
+  <h2 class="tightb">Nine numbers from today</h2>
+  <div class="nums">
+    <div class="num fx up" style="--d:.05s"><div class="v bad"><span data-count="27">27</span><span class="u">calls</span></div><p>from one click when three layers each retry 3 times. Retry in one place.</p></div>
+    <div class="num fx up" style="--d:.12s"><div class="v"><span data-count="150">150</span><span class="u">in flight</span></div><p>50 req/s × 3 s, by Little's law. Why the vendor gets its own pool.</p></div>
+    <div class="num fx up" style="--d:.19s"><div class="v acc">10 › 3 › 1<span class="u">s</span></div><p>client, vendor call, connection. Each timeout shorter than its caller's.</p></div>
+    <div class="num fx up" style="--d:.26s"><div class="v"><span data-count="30">30</span><span class="u">s</span></div><p>relay claim expiry. A crashed pod's batch is picked up after this.</p></div>
+    <div class="num fx up" style="--d:.33s"><div class="v"><span data-count="5">5</span><span class="u">receives</span></div><p>maxReceiveCount before a message moves to the DLQ.</p></div>
+    <div class="num fx up" style="--d:.4s"><div class="v"><span data-count="24">24</span><span class="u">h</span></div><p>how long to keep idempotency keys: longer than any client retry.</p></div>
+    <div class="num fx up" style="--d:.47s"><div class="v acc"><span data-count="1">1</span><span class="u">% · 5 min</span></div><p>error rate that pages. A symptom, not a cause.</p></div>
+    <div class="num fx up" style="--d:.54s"><div class="v acc"><span data-count="10">10</span><span class="u">min</span></div><p>queue age that pages: work is waiting too long.</p></div>
+    <div class="num fx up" style="--d:.61s"><div class="v acc"><span data-count="5">5</span><span class="u">min</span></div><p>oldest unsent outbox row that pages: the relay has stopped.</p></div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>A recap before the review list. Every number here came from an earlier slide; adjust them to your service's real values.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 28 · mistakes -->
+<section class="slide" style="padding-top:64px;">
+  <div class="eyebrow">// what review will send back</div>
+  <h2 style="margin-bottom:22px;">Ten reliability mistakes review sees most</h2>
+  <div class="mistakes">
+    <div class="mistake fx up" style="--d:.05s"><div class="k">dual<br>write</div><p>A queue send or email after the commit, outside any outbox. Lost on the first pod restart.</p></div>
+    <div class="mistake fx up" style="--d:.1s"><div class="k">launch<br>{ }</div><p>Fire-and-forget work in a coroutine nobody tracks. It dies silently with the pod.</p></div>
+    <div class="mistake fx up" style="--d:.15s"><div class="k">ack<br>first</div><p>Deleting the message before the work commits. A crash in between loses it for good.</p></div>
+    <div class="mistake fx up" style="--d:.2s"><div class="k">no<br>dedupe</div><p>A consumer that assumes each message arrives once. The second delivery sends the second email.</p></div>
+    <div class="mistake fx up" style="--d:.25s"><div class="k">batch<br>stops</div><p>One bad message throws out of the loop and the other nine wait forever.</p></div>
+    <div class="mistake fx up" style="--d:.3s"><div class="k">no<br>timeout</div><p>A vendor client with the default timeout, or an inner timeout longer than the outer one.</p></div>
+    <div class="mistake fx up" style="--d:.35s"><div class="k">retry<br>everywhere</div><p>Retries at every layer, or on calls that aren't safe to repeat. One click, 27 calls, two charges.</p></div>
+    <div class="mistake fx up" style="--d:.4s"><div class="k">no DLQ</div><p>A queue with no dead-letter queue, or one nobody is alerted on. Poison messages loop or vanish.</p></div>
+    <div class="mistake fx up" style="--d:.45s"><div class="k">silent<br>relay</div><p>No alert on outbox lag. The relay dies, the queue looks healthy, nothing goes out.</p></div>
+    <div class="mistake fx up" style="--d:.5s"><div class="k">no<br>context</div><p>Log lines without request id or org id. "Something failed" with no way to find out what.</p></div>
+  </div>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>Ask the room which of these they've seen in their own PRs. Usually "launch {}" and "no timeout" get the most hands.</li>
+      <li>This list is the review checklist; link it from the PR template.</li>
+    </ul>
+  </aside>
+</section>
+
+<!-- 29 · close -->
+<section class="slide hero">
+  <div style="margin-top:auto;">
+    <div class="eyebrow fx up">// q&amp;a · 10 min</div>
+    <h1 class="fx up" style="font-size:62px; max-width:900px; --d:.15s">If it matters, it's a row. Dedupe, commit, ack. Fail fast and alone. Page on symptoms.</h1>
+    <p class="lede fx up" style="margin-top:22px; --d:.35s">Release It! and the microservices.io outbox page have the long version. Every intern asks at least one question now.</p>
+  </div>
+  <div class="prompt fx fade" style="margin-top:56px; margin-bottom:0; --d:.7s">$ ask anyone, anything - don't hide and guess</div>
+  <aside class="notes">
+    <ul>
+      <li>If questions are slow to start: "Which of the ten mistakes would bite our service first?"</li>
+    </ul>
+  </aside>
+</section>
+
+</div>
+
+<div id="progress"></div>
+<div id="notes"><h4 id="notes-title">// speaker notes</h4><div id="notes-body"></div></div>
+<div id="help">← → navigate · N notes · F fullscreen</div>
+
+<script>
+(function () {
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  /* ---------- generated diagrams ---------- */
+
+  // Pool slots (bulkhead slide)
+  document.querySelectorAll('.slots').forEach(function (box) {
+    var n = +box.dataset.n, st = +(box.dataset.stagger || 0.07), rnd = box.dataset.random;
+    for (var i = 0; i < n; i++) {
+      var s = document.createElement('span');
+      s.className = 'slot fx ' + box.dataset.fx;
+      var d = rnd ? -((i * 0.53) % 1.7) : i * st;
+      s.style.setProperty('--d', d.toFixed(2) + 's');
+      box.appendChild(s);
+    }
+  });
+
+  // Retry fan-out tree: 1 → 3 → 9 → 27
+  document.querySelectorAll('svg[data-fanout]').forEach(function (svg) {
+    var cols = [40, 210, 380, 560], sizes = [1, 3, 9, 27], spans = [0, 120, 150, 160];
+    var labels = ['client', 'API', 'payments', 'vendor'];
+    var radius = [9, 8, 6, 3.6], cy = 82, pos = [];
+    sizes.forEach(function (c, L) {
+      pos[L] = [];
+      for (var i = 0; i < c; i++) {
+        var y = c === 1 ? cy : cy - spans[L] / 2 + i * spans[L] / (c - 1);
+        pos[L].push(y);
+      }
+    });
+    var gLines = el('g', {}, svg), gNodes = el('g', {}, svg);
+    for (var L = 1; L < 4; L++) {
+      pos[L].forEach(function (y, i) {
+        var py = pos[L - 1][Math.floor(i / 3)];
+        var ln = el('line', { x1: cols[L - 1], y1: py, x2: cols[L], y2: y, pathLength: 1,
+          stroke: L === 3 ? '#6b3434' : '#3a3f4c', 'stroke-width': 1.3, 'class': 'fx draw' }, gLines);
+        ln.style.setProperty('--d', (L * 0.55 - 0.35 + i * 0.012).toFixed(2) + 's');
+        ln.style.setProperty('--dur', '.45s');
+      });
+    }
+    pos.forEach(function (ys, L) {
+      ys.forEach(function (y, i) {
+        var c = el('circle', { cx: cols[L], cy: y, r: radius[L], 'class': 'fx pop',
+          fill: L === 3 ? '#ef6b6b' : (L === 0 ? '#7092ff' : '#4a5a8a') }, gNodes);
+        c.style.setProperty('--d', (L * 0.55 + i * 0.015).toFixed(2) + 's');
+      });
+      var t = el('text', { x: cols[L], y: 188, 'text-anchor': L === 3 ? 'end' : 'middle', 'class': 's fx fade' }, gNodes);
+      if (L === 0) t.setAttribute('text-anchor', 'start');
+      t.style.setProperty('--d', (L * 0.55 + 0.2).toFixed(2) + 's');
+      t.textContent = labels[L] + ' ×' + sizes[L];
+      if (L === 3) { t.setAttribute('x', cols[L] + 30); t.setAttribute('class', 's rt fx fade'); }
+      if (L === 0) t.setAttribute('x', cols[L] - 30);
+    });
+  });
+
+  // Jitter simulation (seeded, so it is the same every time)
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var B = 32, BW = 0.05, CLIENTS = 200, CAP = 60;
+  var lock = new Array(B).fill(0), jit = new Array(B).fill(0);
+  lock[0] += CLIENTS;
+  [0.2, 0.6, 1.4].forEach(function (t) { lock[Math.round(t / BW)] += CLIENTS; });
+  var r = rng(7);
+  for (var c = 0; c < CLIENTS; c++) {
+    var t = 0; jit[0]++;
+    for (var n = 1; n <= 3; n++) { t += r() * 0.2 * Math.pow(2, n - 1); jit[Math.min(B - 1, Math.floor(t / BW))]++; }
+  }
+  var jPeak = Math.max.apply(null, jit.slice(1));
+  var jp = document.getElementById('jPeak'); if (jp) jp.textContent = jPeak;
+  var YMAX = Math.ceil(Math.max(Math.max.apply(null, lock), Math.max.apply(null, jit)) / 50) * 50;
+  document.querySelectorAll('svg[data-jitter]').forEach(function (svg) {
+    var data = svg.dataset.jitter === 'lockstep' ? lock : jit;
+    var x0 = 40, w = 452, y0 = 200, h = 180, bw = w / B;
+    var g = el('g', {}, svg);
+    svg.insertBefore(g, svg.firstChild);
+    el('line', { x1: x0, y1: y0, x2: x0 + w, y2: y0, stroke: '#3a3f4c' }, g);
+    [0, 0.4, 0.8, 1.2, 1.6].forEach(function (s) {
+      var tx = el('text', { x: x0 + (s / 1.6) * w, y: y0 + 18, 'text-anchor': s === 1.6 ? 'end' : (s === 0 ? 'start' : 'middle'), 'class': 's' }, g);
+      tx.textContent = s === 1.6 ? '1.6 s' : (s === 0 ? '0' : s + '');
+    });
+    [0, 100, 200].forEach(function (v) {
+      var tx = el('text', { x: x0 - 8, y: y0 - v / YMAX * h + 4, 'text-anchor': 'end', 'class': 's' }, g);
+      tx.textContent = v;
+    });
+    var capY = (y0 - CAP / YMAX * h).toFixed(1);
+    svg.querySelectorAll('g[data-step] line').forEach(function (l) { l.setAttribute('y1', capY); l.setAttribute('y2', capY); });
+    svg.querySelectorAll('g[data-step] text').forEach(function (t) { t.setAttribute('y', capY - 7); });
+    data.forEach(function (v, i) {
+      if (!v) return;
+      var bh = v / YMAX * h;
+      var rect = el('rect', { x: (x0 + i * bw + 1.5).toFixed(1), y: (y0 - bh).toFixed(1), width: (bw - 3).toFixed(1), height: bh.toFixed(1), rx: 2,
+        'class': 'fx growy ' + (v > CAP ? 'seg-r' : 'seg-a') }, g);
+      rect.style.setProperty('--d', (i * 0.035).toFixed(2) + 's');
+    });
+  });
+
+  // Little's law calculator
+  (function () {
+    var rate = document.getElementById('llRate'), lat = document.getElementById('llLat');
+    if (!rate) return;
+    var POOL = 20, MAX = 200;
+    function upd() {
+      var rv = +rate.value, lv = +lat.value, inflight = Math.round(rv * lv / 1000);
+      document.getElementById('llRateOut').textContent = rv + ' req/s';
+      document.getElementById('llLatOut').textContent = lv >= 1000 ? (lv / 1000).toFixed(lv % 1000 ? 2 : 0).replace(/\.?0+$/, '') + ' s' : lv + ' ms';
+      document.getElementById('llInflight').textContent = inflight;
+      var f = document.getElementById('llFill');
+      f.style.width = Math.min(100, inflight / MAX * 100) + '%';
+      f.style.background = inflight > POOL ? 'var(--bad)' : 'var(--good)';
+      document.getElementById('llCap').style.left = (POOL / MAX * 100) + '%';
+      var v = document.getElementById('llVerdict');
+      if (inflight <= POOL) { v.style.color = 'var(--good)'; v.textContent = 'Fits in a pool of 20.'; }
+      else { v.style.color = 'var(--bad)'; v.textContent = 'A pool of 20 leaves ' + (inflight - POOL) + ' requests waiting' + (inflight > MAX ? ' (off the scale)' : '') + '.'; }
+    }
+    rate.addEventListener('input', upd); lat.addEventListener('input', upd); upd();
+  })();
+
+  /* ---------- deck engine: slides, steps, effects ---------- */
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length, idx = 0, step = 0;
+  var notesEl = document.getElementById('notes'), notesBody = document.getElementById('notes-body');
+  var notesTitle = document.getElementById('notes-title'), progress = document.getElementById('progress');
+
+  slides.forEach(function (s, i) {
+    var max = 0;
+    s.querySelectorAll('[data-step]').forEach(function (e) {
+      e.classList.add('step'); max = Math.max(max, +e.dataset.step);
+    });
+    s._max = max;
+    if (i !== 0) {
+      var n = document.createElement('div'); n.className = 'pageno';
+      n.innerHTML = '<span class="dots"></span><span>' + String(i + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0') + '</span>';
+      s.appendChild(n);
+      s._dots = n.querySelector('.dots');
+      for (var k = 0; k < max; k++) s._dots.appendChild(document.createElement('i'));
+    }
+  });
+
+  function ownerOf(node, slide) {
+    var c = node.closest('[data-step]');
+    return (c && slide.contains(c)) ? c : slide;
+  }
+
+  function countUp(node, instant) {
+    var target = parseFloat(node.dataset.count);
+    if (instant) { node.textContent = target; return; }
+    var t0 = null, dur = 900;
+    node.textContent = '0';
+    function tick(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      node.textContent = Math.round(target * e);
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Start every effect owned by `owner` (a step element, or the slide itself for entry effects).
+  function fire(slide, owner, instant) {
+    var scope = owner, list = [];
+    if (scope !== slide && scope.classList.contains('fx')) list.push(scope);
+    scope.querySelectorAll('.fx').forEach(function (f) { if (ownerOf(f, slide) === owner) list.push(f); });
+    list.forEach(function (f) {
+      f.classList.remove('go');
+      if (instant && !f.classList.contains('loop')) f.classList.add('now'); else f.classList.remove('now');
+    });
+    if (list.length) void slide.offsetWidth;
+    list.forEach(function (f) { f.classList.add('go'); });
+
+    var svgs = [];
+    scope.querySelectorAll('animate, animateMotion, animateTransform').forEach(function (a) {
+      if (a.getAttribute('begin') === 'indefinite' && ownerOf(a, slide) === owner) {
+        try { a.beginElement(); if (svgs.indexOf(a.ownerSVGElement) < 0) svgs.push(a.ownerSVGElement); } catch (err) {}
+      }
+    });
+    if (instant) svgs.forEach(function (sv) { try { sv.setCurrentTime(sv.getCurrentTime() + 60); } catch (err) {} });
+
+    scope.querySelectorAll('[data-count]').forEach(function (c) { if (ownerOf(c, slide) === owner) countUp(c, instant); });
+  }
+
+  function setStep(slide, n, instant) {
+    slide.querySelectorAll('[data-step]').forEach(function (e) {
+      var k = +e.dataset.step, wasOn = e.classList.contains('on');
+      if (k <= n && !wasOn) { e.classList.add('on'); fire(slide, e, instant); }
+      if (k > n && wasOn) e.classList.remove('on');
+    });
+    step = n;
+    if (slide._dots) slide._dots.querySelectorAll('i').forEach(function (d, j) { d.classList.toggle('on', j < n); });
+  }
+
+  function reset(slide) {
+    slide.querySelectorAll('[data-step]').forEach(function (e) { e.classList.remove('on'); });
+    slide.querySelectorAll('.fx').forEach(function (f) { f.classList.remove('go', 'now'); });
+  }
+
+  function fit() {
+    var notesH = notesEl.classList.contains('on') ? notesEl.offsetHeight : 0;
+    var w = window.innerWidth, h = window.innerHeight - notesH;
+    var scale = Math.min(w / 1280, h / 720);
+    slides.forEach(function (s) {
+      s.style.transform = 'translate(-50%, calc(-50% + ' + (-notesH / 2) + 'px)) scale(' + scale + ')';
+    });
+  }
+
+  function show(i, dir) {
+    i = Math.max(0, Math.min(total - 1, i));
+    if (slides[idx] && i !== idx) reset(slides[idx]);
+    idx = i;
+    var s = slides[idx];
+    slides.forEach(function (x, j) { x.classList.toggle('active', j === idx); });
+    var back = dir < 0;
+    reset(s);
+    fire(s, s, back);
+    setStep(s, back ? s._max : 0, back);
+
+    var aside = s.querySelector('aside.notes');
+    notesBody.innerHTML = aside ? aside.innerHTML : '<p>No notes for this slide.</p>';
+    notesTitle.textContent = '// speaker notes · ' + (idx + 1) + ' / ' + total;
+    progress.style.width = ((idx + 1) / total * 100) + '%';
+    try {
+      if (location.protocol !== 'about:' && location.hash !== '#' + (idx + 1)) history.replaceState(null, '', '#' + (idx + 1));
+    } catch (err) { /* sandboxed preview: no URL updates */ }
+    fit();
+  }
+
+  function next() {
+    var s = slides[idx];
+    if (step < s._max) setStep(s, step + 1, false);
+    else if (idx < total - 1) show(idx + 1, 1);
+  }
+  function prev() {
+    var s = slides[idx];
+    if (step > 0) setStep(s, step - 1, false);
+    else if (idx > 0) show(idx - 1, -1);
+  }
+
+  function isControl(t) { return t && t.closest && t.closest('input, select, textarea, button, a, label'); }
+
+  document.addEventListener('keydown', function (e) {
+    if (isControl(e.target)) return;
+    var k = e.key;
+    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ' || k === 'Enter') { e.preventDefault(); next(); }
+    else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); prev(); }
+    else if (k === 'ArrowDown') { e.preventDefault(); show(idx + 1, 1); }
+    else if (k === 'ArrowUp') { e.preventDefault(); show(idx - 1, 1); }
+    else if (k === 'Home') show(0, 1);
+    else if (k === 'End') show(total - 1, -1);
+    else if (k === 'n' || k === 'N') { notesEl.classList.toggle('on'); fit(); }
+    else if (k === 'f' || k === 'F') {
+      try {
+        var p;
+        if (!document.fullscreenElement) { p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); }
+        else { p = document.exitFullscreen && document.exitFullscreen(); }
+        if (p && p.catch) p.catch(function () {});
+      } catch (err) { /* fullscreen not allowed in this frame */ }
+    }
+  });
+
+  document.getElementById('stage').addEventListener('click', function (e) {
+    if (isControl(e.target) || (e.target.closest && e.target.closest('.interactive'))) return;
+    if (e.clientX > window.innerWidth / 3) next(); else prev();
+  });
+
+  var tx = null;
+  document.addEventListener('touchstart', function (e) { tx = isControl(e.target) ? null : e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (tx === null) return;
+    var dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 40) { if (dx < 0) next(); else prev(); }
+    tx = null;
+  });
+
+  // Printing / Save as PDF: every slide fully built.
+  window.addEventListener('beforeprint', function () {
+    slides.forEach(function (s) {
+      fire(s, s, true);
+      s.querySelectorAll('[data-step]').forEach(function (e) { e.classList.add('on'); fire(s, e, true); });
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    slides.forEach(function (s, j) { if (j !== idx) reset(s); });
+    show(idx, -1);
+  });
+
+  window.addEventListener('resize', fit);
+  var start = 1;
+  try { start = parseInt((location.hash || '#1').slice(1), 10); } catch (err) { start = 1; }
+  show(isNaN(start) ? 0 : start - 1, 1);
+})();
+</script>
+</body>
+</html>
