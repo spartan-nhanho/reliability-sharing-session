@@ -8,7 +8,7 @@ The session is delivered as a single self-contained HTML slide deck, so there is
 
 | File | Purpose |
 | --- | --- |
-| `Reliability Engineering Session Slides.html` | The slide deck (29 slides, one file, no external JS). |
+| `Reliability Engineering Session Slides.html` | The slide deck (30 slides, one file, no external JS). |
 | `README.md` | This file. |
 | `.github/workflows/deploy.yml` | Publishes the deck to GitHub Pages on every push to `main`. |
 
@@ -16,18 +16,19 @@ The session is delivered as a single self-contained HTML slide deck, so there is
 
 | Part | Length | Topics |
 | --- | --- | --- |
-| Concepts | 15 min | Outbox, queues, slow dependencies, signals |
-| Live walkthrough | 30 min | The real pipeline (producer, relay, consumer, DLQ) and the dashboards of a past incident |
-| Review and Q&A | 15 min | The lost event, the poison message, the silent relay |
+| Concepts | 35 min | Six words for today, outbox, queues, slow dependencies, signals |
+| Live walkthrough | 15 min | The real pipeline (producer, relay, consumer, DLQ) and the dashboards of a past incident |
+| Review and Q&A | 10 min | The lost event, the poison message, the silent relay |
 
 ### Topics covered
 
+- **Six words for today.** At-least-once, idempotent, ack, outbox, visibility timeout and dead-letter queue, each with an everyday analogy.
 - **Dual writes.** Why writing to the database and then sending to a queue or email can lose or duplicate events.
 - **Transactional outbox.** Writing the event as a row in the same transaction, then relaying it later.
-- **Idempotency keys.** Deduplicating the client's retried request, not only the message.
+- **Idempotency keys.** Deduplicating the client's retried request, not only the message; concurrent duplicates and a reused key with a different body (`422`).
 - **The relay.** Claim, commit, publish, mark sent. Never hold a row lock across a network call.
 - **Queues (SQS).** At-least-once delivery, visibility timeout, `maxReceiveCount`, dead-letter queues, long polling.
-- **The consumer.** Dedupe, do the work, commit, then ack, in that order.
+- **The consumer.** Dedupe, do the work, commit, then ack, in that order. Side effects such as email are rows (`email_outbox`) sent by their own worker.
 - **Slow dependencies.** Nested timeouts, retries with backoff and jitter, circuit breakers, bulkheads, and Little's law for sizing pools.
 - **Backpressure.** Bounded queues and fast `429` responses instead of unbounded latency.
 - **Graceful shutdown.** What each loop does on `SIGTERM` before the pod is killed.
