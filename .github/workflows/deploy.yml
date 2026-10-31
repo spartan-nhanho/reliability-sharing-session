@@ -27,7 +27,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p _site
-          cp "Reliability Engineering Session Slides.html" _site/index.html
+          cp "Reliability Engineering Session Slides - Story Mode.html" _site/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
