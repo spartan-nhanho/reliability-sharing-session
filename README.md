@@ -10,13 +10,13 @@ The session is delivered as a single self-contained HTML slide deck, so there is
 
 | File | Purpose |
 | --- | --- |
-| `Reliability Engineering Session Slides - Story Mode.html` | **The main deck** (49 slides, one file, no external JS). Published to GitHub Pages. |
+| `Reliability Engineering Session Slides - Story Mode.html` | **The main deck** (48 slides, one file, no external JS). Published to GitHub Pages. |
 | `Reliability Engineering Session Slides.html` | The original deck (30 slides), updated for interns. The main deck reuses slides from an earlier version of it. |
 | `README.md` | This file. |
 | `docs/01-presenter-study-guide.md` | Background reading for the presenter: the long version of every topic. |
 | `docs/02-presentation-script.md` | English slide-by-slide script for the original 29-slide deck. |
 | `docs/03-qa-and-exercises.md` | Likely questions with answers, in-session exercises, a quiz and a glossary. |
-| `docs/04-script-tieng-viet.md` | Vietnamese slide-by-slide script for the Story Mode deck (49 slides, 2 hours). |
+| `docs/04-script-tieng-viet.md` | Vietnamese slide-by-slide script for the Story Mode deck (48 slides, 2 hours). |
 | `.github/workflows/deploy.yml` | Publishes the deck to GitHub Pages on every push to `main`. |
 
 ## Session outline
@@ -25,7 +25,7 @@ The session is delivered as a single self-contained HTML slide deck, so there is
 | --- | --- | --- |
 | The shop, version 0 | 10 min | The business, the naive design, the 3 a.m. mystery |
 | Nine problems, one at a time | 90 min, with a break | Lost email, double charge, relay locks, duplicate delivery, lost work and poison messages, slow vendor, traffic spike, deploys, silent failure |
-| End to end, the real repo, Q&A | 20 min | One order through the final design, live walkthrough, the numbers, the review checklist |
+| End to end, Q&A | 20 min | One order through the final design, the numbers, the review checklist, questions |
 
 ### Topics covered
 

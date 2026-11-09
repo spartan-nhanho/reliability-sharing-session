@@ -1,6 +1,6 @@
 # Script thuyết trình tiếng Việt (bản Story Mode)
 
-Script đi kèm file **`Reliability Engineering Session Slides - Story Mode.html`** (49 slide). Mỗi mục bên dưới ứng với đúng một slide; số slide khớp với số ở góc phải dưới của deck (ví dụ `07 / 49`).
+Script đi kèm file **`Reliability Engineering Session Slides - Story Mode.html`** (48 slide). Mỗi mục bên dưới ứng với đúng một slide; số slide khớp với số ở góc phải dưới của deck (ví dụ `07 / 49`).
 
 ## Cách đọc script
 
@@ -38,16 +38,15 @@ Script đi kèm file **`Reliability Engineering Session Slides - Story Mode.html
 | Vấn đề 7 · Flash sale | 34–36 | 5 | 1:24 |
 | Vấn đề 8 · Deploy | 37–39 | 5 | 1:29 |
 | Vấn đề 9 · Hỏng mà không ai biết | 40–44 | 12 | 1:41 |
-| Tổng kết, live, checklist, Q&A | 45–49 | 19 | 2:00 |
+| Tổng kết, checklist, Q&A | 45–48 | 19 | 2:00 |
 
-**Nếu bị trễ giờ**, cắt theo thứ tự: slide 17 (lock time) chỉ nói 1 câu → slide 32 (jitter) nói 1 câu → rút phần live (slide 46) còn 3 phút → slide 45 lướt nhanh.
+**Nếu bị trễ giờ**, cắt theo thứ tự: slide 17 (lock time) chỉ nói 1 câu → slide 32 (jitter) nói 1 câu → slide 45 lướt nhanh → rút Q&A.
 
 **Không được cắt:** slide 7–9 (dual write, outbox), 25 (thứ tự ack), 28 (bốn công cụ), 41 (observability), 43 (lời giải 3 giờ sáng).
 
 ## Trước buổi trình bày
 
 - [ ] Mở deck bằng Chrome, nhấn `F`. Thử bấm chấm đỏ trên slide 5 và phím `M` một lần cho quen.
-- [ ] Mở sẵn các tab cho phần live (slide 46): code outbox, relay, consumer, Terraform của queue, dashboard.
 - [ ] Chuẩn bị bảng trắng hoặc giấy để ghi các câu đoán ở slide 3.
 - [ ] Thử kéo thanh trượt Little's law ở slide 30.
 
@@ -55,7 +54,7 @@ Script đi kèm file **`Reliability Engineering Session Slides - Story Mode.html
 
 # PHẦN MỞ ĐẦU (0:00 – 0:10)
 
-## Slide 01 / 49 · Title
+## Slide 01 / 48 · Title
 
 ⏱ 1 phút · rời slide lúc 0:01
 
@@ -67,7 +66,7 @@ Chào các bạn. Mình là [tên], làm ở team [team]. Hôm nay mình nói v�
 
 Có câu hỏi thì cứ hỏi bất cứ lúc nào nhé, cắt ngang mình cũng được. Hôm nay không có câu hỏi nào ngớ ngẩn cả: nếu bạn thắc mắc, chắc chắn còn người khác cũng đang thắc mắc giống bạn.
 
-## Slide 02 / 49 · Why this session
+## Slide 02 / 48 · Why this session
 
 ⏱ 2 phút · rời slide lúc 0:03
 
@@ -83,9 +82,9 @@ Các bạn đọc câu tiêu đề cùng mình: *phần lớn sự cố không p
 
 Khi viết một tính năng, các bạn test trên laptop. Database trả lời trong 2 mili giây, dịch vụ email lúc nào cũng chạy, không có gì crash cả. Production thì khác: pod bị kill mỗi lần deploy, vendor có lúc chậm, mạng có lúc rớt. Code vẫn "đúng", chỉ là nó chưa bao giờ tính tới những chuyện đó.
 
-Cách mình trình bày hôm nay hơi khác. Mình sẽ đưa ra một hệ thống rất đơn giản cho một cửa hàng online. Sau đó mình **làm hỏng nó chín lần**. Mỗi lần hỏng, mình đào sâu vào nguyên nhân, sửa nó, và thiết kế lớn dần lên. Cuối buổi là toàn bộ hệ thống hoàn chỉnh, code thật, và hỏi đáp.
+Cách mình trình bày hôm nay hơi khác. Mình sẽ đưa ra một hệ thống rất đơn giản cho một cửa hàng online. Sau đó mình **làm hỏng nó chín lần**. Mỗi lần hỏng, mình đào sâu vào nguyên nhân, sửa nó, và thiết kế lớn dần lên. Cuối buổi là toàn bộ hệ thống hoàn chỉnh, checklist khi review code, và hỏi đáp.
 
-## Slide 03 / 49 · 03:07 a.m.
+## Slide 03 / 48 · 03:07 a.m.
 
 ⏱ 3 phút · rời slide lúc 0:06
 
@@ -111,7 +110,7 @@ Lúc 2 giờ 10 có một lần deploy. Còn đường đỏ là số dòng tron
 
 **[→]** Không có alert nào kêu cả. Độ sâu queue nhìn hoàn hảo. Các bạn giữ câu hỏi này trong đầu nhé. Đến vấn đề số 9, các bạn sẽ tự giải thích được biểu đồ này.
 
-## Slide 04 / 49 · The business
+## Slide 04 / 48 · The business
 
 ⏱ 2 phút · rời slide lúc 0:08
 
@@ -143,7 +142,7 @@ Bên phải là vài con số về cửa hàng. Các bạn nhớ sơ sơ, vì co
 
 **Nếu bị hỏi** *"Trừ tiền trước rồi mới lưu order, lỡ lưu thất bại thì sao?"*: Câu hỏi rất hay. Đó cũng chính là vấn đề dual write mà mình sắp nói ở vấn đề 1: hai hệ thống, không có transaction chung. Trong hệ thống thật, mình sẽ lưu order trạng thái "pending" trước, gọi payment kèm idempotency key, rồi cập nhật trạng thái. Hôm nay mình tập trung vào phần email cho dễ theo dõi.
 
-## Slide 05 / 49 · Version 0 (sơ đồ)
+## Slide 05 / 48 · Version 0 (sơ đồ)
 
 ⏱ 2 phút · rời slide lúc 0:10
 
@@ -163,7 +162,7 @@ Sơ đồ này sẽ đi cùng mình suốt buổi. Mỗi khi có vấn đề, m�
 
 # VẤN ĐỀ 1 · MẤT EMAIL (0:10 – 0:23)
 
-## Slide 06 / 49 · Problem 1 · The pod dies after the commit
+## Slide 06 / 48 · Problem 1 · The pod dies after the commit
 
 ⏱ 2 phút · rời slide lúc 0:12
 
@@ -186,7 +185,7 @@ Sơ đồ nhỏ bên trái cho thấy lỗi nằm ở đâu: đường gọi ema
 
 Mình đi sâu vào ba slide.
 
-## Slide 07 / 49 · Two systems, one request, no shared transaction
+## Slide 07 / 48 · Two systems, one request, no shared transaction
 
 ⏱ 3 phút · rời slide lúc 0:15
 
@@ -215,7 +214,7 @@ Vậy một request được phép làm gì?
 
 *Việc gì quan trọng thì phải là một dòng trong database. Một worker sẽ làm nó.*
 
-## Slide 08 / 49 · Four ways a dual write can end
+## Slide 08 / 48 · Four ways a dual write can end
 
 ⏱ 3 phút · rời slide lúc 0:18
 
@@ -245,7 +244,7 @@ Có hai thứ có thể thành công hoặc thất bại: commit và gửi. Vậ
 
 **Nếu bị hỏi** *"Sao không dùng distributed transaction (two-phase commit)?"*: SQS và các email vendor không hỗ trợ. Ở chỗ có hỗ trợ thì nó chậm và dễ bị kẹt. Để database làm nguồn sự thật duy nhất thì đơn giản hơn nhiều.
 
-## Slide 09 / 49 · Transactional outbox
+## Slide 09 / 48 · Transactional outbox
 
 ⏱ 4 phút · rời slide lúc 0:22
 
@@ -279,7 +278,7 @@ Relay và dedupe mình sẽ đào sâu ở vấn đề 3 và 4.
 
 **Ví dụ dễ hiểu (nếu cần):** Nhà hàng. Người phục vụ không tự nấu; họ ghi order ra phiếu và ghim lên bảng của bếp. Đó là outbox. Bếp lấy phiếu xuống làm. Nếu một đầu bếp nghỉ giữa chừng, phiếu vẫn còn trên bảng.
 
-## Slide 10 / 49 · Version 1 (sơ đồ)
+## Slide 10 / 48 · Version 1 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 0:23
 
@@ -293,7 +292,7 @@ Version 1. Các phần màu xanh lá là phần mới: bảng `outbox`, relay, S
 
 # VẤN ĐỀ 2 · TRỪ TIỀN HAI LẦN (0:23 – 0:31)
 
-## Slide 11 / 49 · Problem 2 · The app retries
+## Slide 11 / 48 · Problem 2 · The app retries
 
 ⏱ 2 phút · rời slide lúc 0:25
 
@@ -305,7 +304,7 @@ Version 1. Các phần màu xanh lá là phần mới: bảng `outbox`, relay, S
 
 **[→]** Vì sao dễ bị bỏ sót: outbox ghi lại trung thực cả hai order. Consumer dedupe theo event id, mà đây là hai event khác nhau.
 
-## Slide 12 / 49 · Idempotency at the edge
+## Slide 12 / 48 · Idempotency at the edge
 
 ⏱ 3 phút · rời slide lúc 0:28
 
@@ -328,7 +327,7 @@ Chỉ vào code: trong cùng transaction, tìm key. Đã thấy rồi thì trả
 
 **Nếu bị hỏi** *"Payment vendor được gọi trước khi kiểm tra key, vậy vẫn trừ tiền hai lần à?"*: Đúng, nếu để như code version 0 thì vẫn bị. Trong thực tế phải kiểm tra key **trước** khi gọi payment, và truyền luôn key đó cho payment vendor; hầu hết payment API đều nhận idempotency key để tự loại trùng ở phía họ.
 
-## Slide 13 / 49 · The retry, step by step
+## Slide 13 / 48 · The retry, step by step
 
 ⏱ 2 phút · rời slide lúc 0:30
 
@@ -348,7 +347,7 @@ Ba làn: client, API, Postgres.
 
 **Hỏi:** *"Nếu client tạo key mới cho lần gửi lại thì sao?"* Đáp: trông như ý định mới, lại thành hai order.
 
-## Slide 14 / 49 · Version 2 (sơ đồ)
+## Slide 14 / 48 · Version 2 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 0:31
 
@@ -362,7 +361,7 @@ Version 2: thêm bảng `idempotency_keys`, và header `Idempotency-Key` trên �
 
 # VẤN ĐỀ 3 · RELAY GIỮ LOCK (0:31 – 0:39)
 
-## Slide 15 / 49 · Problem 3 · SQS is slow for a minute
+## Slide 15 / 48 · Problem 3 · SQS is slow for a minute
 
 ⏱ 2 phút · rời slide lúc 0:33
 
@@ -378,7 +377,7 @@ Version 2: thêm bảng `idempotency_keys`, và header `Idempotency-Key` trên �
 
 **[→]** Vì sao dễ bị bỏ sót: ngày thường publish chỉ mất 20 mili giây, nên lock gần như vô hình. Nó chỉ gây hại vào đúng ngày xấu.
 
-## Slide 16 / 49 · The relay
+## Slide 16 / 48 · The relay
 
 ⏱ 3 phút · rời slide lúc 0:36
 
@@ -409,7 +408,7 @@ Bước 2, publish lên SQS, không giữ lock nào. Bước 3, đánh dấu đ�
 
 **[→]** Polling là một lựa chọn. Cách khác là CDC, đọc log thay đổi của database bằng công cụ như Debezium: nhanh hơn nhưng nhiều thứ phải vận hành hơn. Mình chọn polling vì chỉ cần một bảng và một vòng lặp.
 
-## Slide 17 / 49 · Lock time, before and after
+## Slide 17 / 48 · Lock time, before and after
 
 ⏱ 2 phút · rời slide lúc 0:38 *(cắt đầu tiên nếu trễ giờ)*
 
@@ -423,7 +422,7 @@ Bước 2, publish lên SQS, không giữ lock nào. Bước 3, đánh dấu đ�
 
 Con số chỉ để minh họa; cái quan trọng là hình dạng.
 
-## Slide 18 / 49 · Version 3 (sơ đồ)
+## Slide 18 / 48 · Version 3 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 0:39
 
@@ -437,7 +436,7 @@ Version 3: relay giờ ghi "claims, no locks", tức là claim chứ không gi�
 
 # VẤN ĐỀ 4 · MESSAGE GIAO HAI LẦN (0:39 – 0:48)
 
-## Slide 19 / 49 · Problem 4 · The same message, twice
+## Slide 19 / 48 · Problem 4 · The same message, twice
 
 ⏱ 2 phút · rời slide lúc 0:41
 
@@ -447,7 +446,7 @@ Version 3: relay giờ ghi "claims, no locks", tức là claim chứ không gi�
 
 **[→]** Vì sao dễ bị bỏ sót: hiếm khi gặp lúc test, nhưng bình thường ở production, nhất là trong lúc deploy.
 
-## Slide 20 / 49 · The queue
+## Slide 20 / 48 · The queue
 
 ⏱ 3 phút · rời slide lúc 0:44
 
@@ -477,7 +476,7 @@ Giải thích cách SQS hoạt động (vẽ lên bảng nếu cần): khi consu
 
 **[→]** **Long polling**, `WaitTimeSeconds 20`: lệnh nhận chờ tới 20 giây cho có message thay vì trả về rỗng ngay. Ít lần gọi rỗng, rẻ hơn, nhận nhanh hơn.
 
-## Slide 21 / 49 · Visibility timeout and the DLQ
+## Slide 21 / 48 · Visibility timeout and the DLQ
 
 ⏱ 3 phút · rời slide lúc 0:47
 
@@ -491,7 +490,7 @@ Giải thích cách SQS hoạt động (vẽ lên bảng nếu cần): khi consu
 
 **[→]** Còn message lần nào cũng lỗi, ví dụ dữ liệu hỏng: nhận lần 1 lỗi, 2, 3, 4, 5 vẫn lỗi. `maxReceiveCount` bằng 5, nên nó chuyển sang DLQ và alarm kêu. Không có DLQ thì nó lặp mãi.
 
-## Slide 22 / 49 · Version 4 (sơ đồ)
+## Slide 22 / 48 · Version 4 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 0:48
 
@@ -505,7 +504,7 @@ Version 4: thêm bảng `processed` để dedupe.
 
 # VẤN ĐỀ 5 · CONSUMER CRASH VÀ POISON MESSAGE (0:48 – 0:56)
 
-## Slide 23 / 49 · Problem 5 · The consumer crashes, or a message is bad
+## Slide 23 / 48 · Problem 5 · The consumer crashes, or a message is bad
 
 ⏱ 2 phút · rời slide lúc 0:50
 
@@ -515,7 +514,7 @@ Version 4: thêm bảng `processed` để dedupe.
 
 **[→]** Vì sao dễ bị bỏ sót: ack trước trông gọn gàng. Bug chỉ xuất hiện khi crash đúng dòng sai, và production sớm muộn gì cũng làm vậy.
 
-## Slide 24 / 49 · The consumer
+## Slide 24 / 48 · The consumer
 
 ⏱ 3 phút · rời slide lúc 0:53
 
@@ -535,7 +534,7 @@ Version 4: thêm bảng `processed` để dedupe.
 
 **[→]** Consumer có thread pool riêng và kết nối database riêng. Nếu dùng chung pool với API, lúc queue dồn nhiều, consumer sẽ chiếm hết và API phải chờ.
 
-## Slide 25 / 49 · Where can it crash?
+## Slide 25 / 48 · Where can it crash?
 
 ⏱ 2 phút · rời slide lúc 0:55
 
@@ -551,7 +550,7 @@ Version 4: thêm bảng `processed` để dedupe.
 
 **Nếu bị hỏi** *"Email không nằm trong database, vậy commit xong mà crash trước khi gửi email thì sao?"*: Rất tinh ý. Lúc giao lại, dedupe sẽ bỏ qua, nên email bị mất. Không thể làm side effect bên ngoài "đúng một lần" chỉ bằng code của mình. Cách tốt nhất: consumer ghi thêm một dòng outbox "gửi email", và một worker riêng gửi nó, kèm idempotency key cho email vendor để họ tự loại trùng. Lại là *"việc quan trọng thì phải là một dòng"*.
 
-## Slide 26 / 49 · Version 5 (sơ đồ)
+## Slide 26 / 48 · Version 5 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 0:56
 
@@ -575,7 +574,7 @@ Sau khi nghỉ, nhấn **[→]** để vào vấn đề 6.
 
 # VẤN ĐỀ 6 · VENDOR CHẬM (1:01 – 1:19)
 
-## Slide 27 / 49 · Problem 6 · The payment vendor gets slow
+## Slide 27 / 48 · Problem 6 · The payment vendor gets slow
 
 ⏱ 2 phút · rời slide lúc 1:03
 
@@ -594,7 +593,7 @@ Chào mừng các bạn quay lại. Mình là [tên], phần sau mình dẫn. N�
 
 **[→]** Vì sao dễ bị bỏ sót: *sập thì lỗi nhanh. Chậm thì giữ thread, kết nối và bộ nhớ cho tới khi mọi thứ xếp hàng phía sau nó.* Nên chậm tệ hơn sập.
 
-## Slide 28 / 49 · Four tools, one goal
+## Slide 28 / 48 · Four tools, one goal
 
 ⏱ 3 phút · rời slide lúc 1:06
 
@@ -624,7 +623,7 @@ Nói phép tính thật chậm, và nhấn mạnh chữ *mỗi pod*. Pool 20 ở
 
 Ở đây "pool" là số lời gọi chạy cùng lúc trên một pod (thread, hoặc với coroutine là số slot của semaphore). Lời gọi payment nằm ngoài transaction, nên thứ bị cạn là chỗ này, không phải kết nối DB.
 
-## Slide 29 / 49 · Timeouts and breakers, drawn
+## Slide 29 / 48 · Timeouts and breakers, drawn
 
 ⏱ 3 phút · rời slide lúc 1:09
 
@@ -648,7 +647,7 @@ Câu cuối slide quan trọng: *khi breaker đang open, trả fallback ngay l�
 
 **Gài sẵn cho slide 31:** *"Để ý nhé: API cho vendor 3 giây, thử 3 lần, cộng backoff là khoảng 9,6 giây, sát mốc 10 giây của client. Lần thử cuối gần như chắc chắn không ai nhận. Hai slide nữa mình sửa chuyện này."*
 
-## Slide 30 / 49 · Bulkheads, visualized
+## Slide 30 / 48 · Bulkheads, visualized
 
 ⏱ 4 phút · rời slide lúc 1:13
 
@@ -668,7 +667,7 @@ Thử nhé. Thanh trượt tính cho một pod. 25 request mỗi giây, 200 mili
 
 **Nếu bị hỏi** *"Code mình dùng Kotlin coroutine, vậy bulkhead có phải là thread pool không?"*: Với HTTP client dạng suspend thì thread không bị chặn khi chờ. Thứ cần giới hạn là *số lời gọi vendor chạy cùng lúc*, nên dùng `Semaphore(5)` hoặc `Dispatchers.IO.limitedParallelism(5)` cho vendor. Cùng một ý tưởng, chỉ khác công cụ.
 
-## Slide 31 / 49 · The fine print
+## Slide 31 / 48 · The fine print
 
 ⏱ 3 phút · rời slide lúc 1:16
 
@@ -691,7 +690,7 @@ Thêm một ý nếu còn thời gian: **retry budget**. Chỉ cho retry khi s�
 
 **[→]** **Quyết định "lỗi nhanh" thì trả về gì.** Lỗi là lựa chọn cuối cùng. Tốt hơn là: một kết quả cache, một tính năng thu gọn, hoặc "đã nhận, sẽ xử lý sau": trả 202 và ghi một dòng outbox. Lại là outbox.
 
-## Slide 32 / 49 · Backoff and jitter
+## Slide 32 / 48 · Backoff and jitter
 
 ⏱ 2 phút · rời slide lúc 1:18 *(rút gọn nếu trễ)*
 
@@ -707,7 +706,7 @@ Tưởng tượng 200 client cùng lỗi một lúc, vì vendor vừa chập ch�
 
 **[→]** Đường cam là sức chịu của vendor. Cột đỏ là vượt quá. Tổng cộng vẫn 600 lần retry, nhưng đỉnh giảm mạnh. (Đây là mô phỏng nhỏ tính ngay trong trang, không phải dữ liệu thật.)
 
-## Slide 33 / 49 · Version 6 (sơ đồ)
+## Slide 33 / 48 · Version 6 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 1:19
 
@@ -721,7 +720,7 @@ Version 6: dưới payment vendor có nhãn "timeout · breaker · pool".
 
 # VẤN ĐỀ 7 · FLASH SALE (1:19 – 1:24)
 
-## Slide 34 / 49 · Problem 7 · A flash sale
+## Slide 34 / 48 · Problem 7 · A flash sale
 
 ⏱ 1 phút · rời slide lúc 1:20
 
@@ -733,7 +732,7 @@ Lần này không phải ai khác chậm, mà chính mình bị quá tải.
 
 **[→]** Vì sao dễ bị bỏ sót: độ trễ phẳng lì cho tới "điểm gãy", nên dashboard trông khỏe cho tới đúng khoảnh khắc nó không còn khỏe.
 
-## Slide 35 / 49 · Backpressure
+## Slide 35 / 48 · Backpressure
 
 ⏱ 3 phút · rời slide lúc 1:23
 
@@ -759,7 +758,7 @@ Làm sao biết điểm gãy của mình? Load test bằng công cụ như k6: t
 
 **Nếu bị hỏi** *"Sao không autoscale thêm pod?"*: HPA mất vài phút mới bật được pod mới, flash sale thì dồn trong vài giây. Mỗi pod thêm lại mở 20 kết nối, nên sớm muộn chạm `max_connections` của Postgres. Thêm pod chỉ dời điểm gãy ra xa chứ không xóa được nó, nên vẫn cần backpressure.
 
-## Slide 36 / 49 · Version 7 (sơ đồ)
+## Slide 36 / 48 · Version 7 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 1:24
 
@@ -773,7 +772,7 @@ Version 7: trên đường client tới API có nhãn "429 if full".
 
 # VẤN ĐỀ 8 · DEPLOY (1:24 – 1:29)
 
-## Slide 37 / 49 · Problem 8 · We deploy ten times a day
+## Slide 37 / 48 · Problem 8 · We deploy ten times a day
 
 ⏱ 1 phút · rời slide lúc 1:25
 
@@ -783,7 +782,7 @@ Version 7: trên đường client tới API có nhãn "429 if full".
 
 **[→]** Vì sao dễ bị bỏ sót: *mỗi lần deploy là một lần shutdown.* Mất một chút mỗi lần, nhân 10 lần một ngày thì thành nhiều.
 
-## Slide 38 / 49 · Graceful shutdown
+## Slide 38 / 48 · Graceful shutdown
 
 ⏱ 3 phút · rời slide lúc 1:28
 
@@ -808,7 +807,7 @@ Nhưng nhờ dedupe và claim, một lần bị kill đột ngột chỉ làm c�
 
 **Nếu bị hỏi** *"Health check có nên gọi DB hay vendor không?"*: Liveness thì không. Liveness chỉ trả lời "tiến trình còn sống không"; nếu nó phụ thuộc DB hay vendor, một phụ thuộc chậm sẽ làm Kubernetes restart cả loạt pod khỏe (đúng chuyện ở slide 30). Readiness mới là chỗ báo "tạm thời đừng gửi traffic cho tôi".
 
-## Slide 39 / 49 · Version 8 (sơ đồ)
+## Slide 39 / 48 · Version 8 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 1:29
 
@@ -822,7 +821,7 @@ Version 8: góc dưới bên trái có khung "Every pod, every deploy": SIGTERM,
 
 # VẤN ĐỀ 9 · HỎNG MÀ KHÔNG AI BIẾT (1:29 – 1:41)
 
-## Slide 40 / 49 · Problem 9 · Something stops, and nobody notices
+## Slide 40 / 48 · Problem 9 · Something stops, and nobody notices
 
 ⏱ 2 phút · rời slide lúc 1:31
 
@@ -836,7 +835,7 @@ Version 8: góc dưới bên trái có khung "Every pod, every deploy": SIGTERM,
 
 **Hỏi:** để các bạn thảo luận nhanh 1 phút. Nhìn lại sơ đồ nhỏ, chấm đỏ đang ở relay. **Chưa xác nhận đáp án**; đáp án ở slide 43.
 
-## Slide 41 / 49 · Observability
+## Slide 41 / 48 · Observability
 
 ⏱ 4 phút · rời slide lúc 1:35
 
@@ -867,7 +866,7 @@ Dừng lại ở dòng outbox: *"Các bạn nhớ dòng này. Hai slide nữa n�
 
 **[→]** Alert nào cũng phải có runbook và có người chịu trách nhiệm. Alert không ai xử lý sẽ bị tắt tiếng trong vòng một tháng. Ít alert, nhưng cái nào cũng thật.
 
-## Slide 42 / 49 · One trace, end to end
+## Slide 42 / 48 · One trace, end to end
 
 ⏱ 2 phút · rời slide lúc 1:37
 
@@ -881,7 +880,7 @@ Dừng lại ở dòng outbox: *"Các bạn nhớ dòng này. Hai slide nữa n�
 
 **[→]** Và đây là một trace duy nhất, từ lúc `POST` tới lúc gửi email, vì `traceparent` đi theo trong message SQS và trong dòng `email_outbox`. Không có nó, mình sẽ thấy hai trace rời rạc và phải đoán.
 
-## Slide 43 / 49 · 03:07 a.m., answered
+## Slide 43 / 48 · 03:07 a.m., answered
 
 ⏱ 3 phút · rời slide lúc 1:40
 
@@ -897,7 +896,7 @@ Chỉ lại các câu đoán đã ghi trên bảng ở slide 3: *"Cách nào tro
 
 Chính xác. Relay ngừng chạy lúc deploy. Queue rỗng vì *không có gì được publish cả*. Một queue rỗng trông giống hệt một queue khỏe. Nên mọi alert về queue đều im lặng.
 
-*Vì sao relay ngừng?* Vòng lặp relay chạy trong một `launch { }`. Bản deploy mới gặp một exception không ai bắt, vòng lặp chết. Pod vẫn trả lời `/health` bình thường, vì health check chỉ kiểm tra HTTP server, không kiểm tra vòng lặp worker. Nối lại: `launch { }` ở slide 7, try/catch cho từng message ở slide 24, và mục "silent relay" sắp gặp ở slide 48.
+*Vì sao relay ngừng?* Vòng lặp relay chạy trong một `launch { }`. Bản deploy mới gặp một exception không ai bắt, vòng lặp chết. Pod vẫn trả lời `/health` bình thường, vì health check chỉ kiểm tra HTTP server, không kiểm tra vòng lặp worker. Nối lại: `launch { }` ở slide 7, try/catch cho từng message ở slide 24, và mục "silent relay" sắp gặp ở slide 47.
 
 **[→]** Với một alert về outbox lag, "dòng chưa gửi cũ nhất quá 5 phút", người trực sẽ bị gọi lúc 2 giờ 15.
 
@@ -907,7 +906,7 @@ Chính xác. Relay ngừng chạy lúc deploy. Queue rỗng vì *không có gì 
 
 (Nếu bạn dùng một sự cố thật của team ở slide 3, kể kết thúc thật ở đây.)
 
-## Slide 44 / 49 · Version 9 (sơ đồ)
+## Slide 44 / 48 · Version 9 (sơ đồ)
 
 ⏱ 1 phút · rời slide lúc 1:41
 
@@ -923,7 +922,7 @@ So với version 0, sơ đồ lớn hơn nhiều. Nhưng mỗi mảnh đều có
 
 # TỔNG KẾT (1:41 – 2:00)
 
-## Slide 45 / 49 · One order, end to end
+## Slide 45 / 48 · One order, end to end
 
 ⏱ 2 phút · rời slide lúc 1:43
 
@@ -939,31 +938,9 @@ So với version 0, sơ đồ lớn hơn nhiều. Nhưng mỗi mảnh đều có
 
 *Một dòng bền vững trong request, rồi at-least-once suốt phần còn lại.* Mỗi chặng có thể làm lặp lại, nhưng không chặng nào được làm mất.
 
-## Slide 46 / 49 · Live in the repo
+## Slide 46 / 48 · The numbers to remember
 
-⏱ 7 phút · rời slide lúc 1:50
-
-> **Khái niệm cần biết** · để bạn hiểu, không cần đọc to
->
-> - **Repo:** Kho chứa mã nguồn (git).
-> - **Terraform:** Công cụ mô tả hạ tầng (queue, database…) bằng code, để tạo và sửa hạ tầng một cách có kiểm soát.
-
-Để slide này trên màn hình làm mục lục, rồi chuyển sang các tab đã mở sẵn. Điền đường dẫn trước buổi:
-
-| # | Mở | Hỏi cả phòng trước khi giải thích | Phút |
-| --- | --- | --- | --- |
-| 1 | `[đường dẫn tới chỗ ghi outbox]` | "Tìm transaction. Lệnh insert outbox có nằm trong nó không?" | 1 |
-| 2 | `[đường dẫn tới relay]` | "Transaction kết thúc ở đâu? Có lời gọi mạng nào bên trong không?" | 1 |
-| 3 | `[đường dẫn tới consumer]` | "Dòng nào là ack? Nó nằm trước hay sau commit?" | 1 |
-| 4 | `[đường dẫn Terraform của queue]` | "Visibility timeout có dài hơn thời gian consumer xử lý không?" | 1 |
-| 5 | `[link dashboard]` | Chỉ RED, tuổi queue, DLQ, outbox lag. Theo một trace id thật từ POST tới consumer. | 2 |
-| 6 | Biểu đồ 3 giờ sáng (hoặc một sự cố thật của team) | "Dấu hiệu đầu tiên ở đâu? Alert nào lẽ ra đã bắt được sớm hơn?" Để các bạn tự chỉ chỗ cần nhìn. | 1 |
-
-**Nếu không show được repo thật** (không có quyền, hoặc demo trục trặc): dùng Bài tập 4 trong `03-qa-and-exercises.md`. Đó là 6 đoạn code có lỗi để các bạn tìm, cùng bài học mà không có rủi ro demo.
-
-## Slide 47 / 49 · The numbers to remember
-
-⏱ 1 phút · rời slide lúc 1:51
+⏱ 1 phút · rời slide lúc 1:44
 
 Mỗi con số một câu, đi nhanh:
 
@@ -979,9 +956,9 @@ Mỗi con số một câu, đi nhanh:
 
 Đây là các con số ví dụ. Service thật của các bạn có thể khác; cách suy luận thì giống.
 
-## Slide 48 / 49 · Ten reliability mistakes review sees most
+## Slide 47 / 48 · Ten reliability mistakes review sees most
 
-⏱ 2 phút · rời slide lúc 1:53
+⏱ 2 phút · rời slide lúc 1:46
 
 > **Khái niệm cần biết** · để bạn hiểu, không cần đọc to
 >
@@ -995,9 +972,9 @@ Lướt nhanh, vì tất cả đều đã gặp trong 9 vấn đề. Có thể n
 
 Các bạn không cần nhớ hết mười lỗi. Lưu slide này lại. Review sẽ bắt giúp các bạn, và mọi người đều học những điều này theo cách đó.
 
-## Slide 49 / 49 · Close
+## Slide 48 / 48 · Close
 
-⏱ 7 phút · rời slide lúc 2:00
+⏱ 14 phút (Q&A là chính) · rời slide lúc 2:00
 
 Bốn câu mang về nhà:
 
@@ -1095,7 +1072,7 @@ Khái niệm nào được giải thích ở slide nào.
 | Pod | 02 |
 | Poison message | 20 |
 | Polling | 16 |
-| PR (pull request) / code review | 48 |
+| PR (pull request) / code review | 47 |
 | preStop hook | 38 |
 | Production | 02 |
 | Publish | 09 |
@@ -1104,7 +1081,6 @@ Khái niệm nào được giải thích ở slide nào.
 | Redrive | 20 |
 | Relay | 09 |
 | Reliability (độ tin cậy) | 01 |
-| Repo | 46 |
 | Request / response | 13 |
 | Request id | 41 |
 | Retry | 04 |
@@ -1121,7 +1097,6 @@ Khái niệm nào được giải thích ở slide nào.
 | Structured log (log JSON) | 41 |
 | Sập vs chậm (down vs slow) | 27 |
 | terminationGracePeriodSeconds | 38 |
-| Terraform | 46 |
 | Thread pool / executor | 24 |
 | Thundering herd | 32 |
 | Timeout | 04 |

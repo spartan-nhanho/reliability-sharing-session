@@ -455,7 +455,7 @@
   <div class="footer">hirespartan.io</div>
   <aside class="notes">
     <ul>
-      <li>Introduce yourself and the format: ideas first, then 30 minutes in the real repo, then review and questions.</li>
+      <li>Introduce yourself and the format: ideas first, then one order end to end, the review checklist, and questions.</li>
       <li>Ask people to keep questions coming throughout; there's time reserved at the end too.</li>
       <li>Diagram slides build step by step: each → press reveals the next part. The dots bottom-right show how many reveals are left.</li>
     </ul>
@@ -478,7 +478,7 @@
     </div>
     <div class="fx up" style="--d:.5s">
       <div class="min">20 min</div>
-      <h3>End to end, the real repo, Q&amp;A</h3>
+      <h3>End to end, review checklist, Q&amp;A</h3>
       <p>One order through the final design, then what review catches.</p>
     </div>
   </div>
@@ -1832,7 +1832,7 @@ UPDATE outbox SET sent_at = now()
       <li>→ 1: the request: 180 ms, two DB spans. The user got their 201 here.</li>
       <li>→ 2: the async hop: a 1 s wait for the relay's next poll, the publish, a short time in the queue.</li>
       <li>→ 3: the consumer, and the slow vendor call inside it: that's where the time went.</li>
-      <li>→ 4: why it's one trace. Numbers are illustrative; in the live part, open a real trace from the repo.</li>
+      <li>→ 4: why it's one trace. Numbers are illustrative.</li>
     </ul>
   </aside>
 </section>
@@ -1895,7 +1895,7 @@ UPDATE outbox SET sent_at = now()
   <div class="mapbox"></div>
   <div class="mapfoot">
     <p class="fixed"><b>✓ Fixed 9:</b> structured logs, RED metrics, traces through SQS, and a “work piling up” alert on every async hop.</p>
-    <div class="next good step" data-step="1"><div><h3>Next: one order through all of it</h3><p>Then the real repo, the numbers, the review checklist, and questions.</p></div><span class="go-btn">→</span></div>
+    <div class="next good step" data-step="1"><div><h3>Next: one order through all of it</h3><p>Then the numbers, the review checklist, and questions.</p></div><span class="go-btn">→</span></div>
   </div>
   <div class="footer">hirespartan.io</div>
   <aside class="notes"><ul><li>The finished design. Point at each green number and ask the room to name the problem it fixed.</li><li>→ moves on to the end-to-end walkthrough.</li></ul></aside>
@@ -1973,28 +1973,6 @@ UPDATE outbox SET sent_at = now()
       <li>→ 2: the relay picks the row up and publishes to SQS.</li>
       <li>→ 3: the consumer dedupes and writes an email_outbox row in the same transaction, commits, acks. A sender worker calls the email vendor with an idempotency key, so the email is neither lost nor sent twice.</li>
       <li>→ 4: a poison message: after maxReceiveCount it moves to the DLQ and the alarm fires.</li>
-    </ul>
-  </aside>
-</section>
-
-<section class="slide">
-  <div class="eyebrow">// live in the repo · 7 min</div>
-  <h2>One event from outbox to consumer, then the dashboards of a real incident</h2>
-  <table>
-    <tr><th>#</th><th>Step</th><th>Point out</th></tr>
-    <tr class="fx fade" style="--d:.1s"><td>1</td><td>The outbox write</td><td>Inside the same transaction as the business row. The idempotency key check.</td></tr>
-    <tr class="fx fade" style="--d:.2s"><td>2</td><td>The relay</td><td>Claim, commit, publish, mark sent. Batch size, what happens on a publish failure.</td></tr>
-    <tr class="fx fade" style="--d:.3s"><td>3</td><td>The consumer</td><td>Dedupe, transaction, ack order. Its executor and pool budget.</td></tr>
-    <tr class="fx fade" style="--d:.4s"><td>4</td><td>Queue config in Terraform</td><td>Visibility timeout, <code>maxReceiveCount</code>, the DLQ and its alarm.</td></tr>
-    <tr class="fx fade" style="--d:.5s"><td>5</td><td>The dashboards</td><td>RED per endpoint, queue age, DLQ, pool saturation, outbox lag. The alert rules.</td></tr>
-    <tr class="fx fade" style="--d:.6s"><td>6</td><td>The incident, replayed</td><td>Back to the 3 a.m. graph. Find the first sign, find the cause. What would have caught it earlier?</td></tr>
-  </table>
-  <div class="footer">hirespartan.io</div>
-  <aside class="notes">
-    <ul>
-      <li>Have the repo, Terraform and dashboards open in tabs before the session starts.</li>
-      <li>Follow one real trace id from the POST through the consumer to make step 5 concrete.</li>
-      <li>Step 6: let the audience drive. Ask them where to look next. Then come back to the next slide.</li>
     </ul>
   </aside>
 </section>
