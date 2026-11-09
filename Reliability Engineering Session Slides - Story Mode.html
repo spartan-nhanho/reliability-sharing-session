@@ -1059,16 +1059,92 @@ UPDATE outbox SET sent_at = now()
       <div class="fact step" data-step="3"><div class="lbl">why it slips through</div><p>Rare in tests, normal in production, and most common during deploys.</p></div>
     </div>
   </div>
-  <div class="inthis"><span class="lbl">deep dive →</span> <span class="chip acc" data-goto="p4-1">SQS delivers at least once</span> <span class="chip acc" data-goto="p4-2">Visibility timeout and the DLQ</span></div>
+  <div class="inthis"><span class="lbl">deep dive →</span> <span class="chip acc" data-goto="p4-1">The life of a message</span> <span class="chip acc" data-goto="p4-2">SQS delivers at least once</span> <span class="chip acc" data-goto="p4-3">Visibility timeout and the DLQ</span></div>
   <div class="footer">hirespartan.io</div>
   <aside class="notes"><ul>
     <li>The marker on the mini map shows where in the shop this breaks.</li>
     <li>→ ×3 reveals the facts. Before the second one, ask the room: "What do you think happened?"</li>
-    <li>Then → into the deep dive (2 slides), or click a chip to jump. Press M to go back to the map.</li>
+    <li>Then → into the deep dive (3 slides), or click a chip to jump. Press M to go back to the map.</li>
   </ul></aside>
 </section>
 
 <section class="slide" id="p4-1" data-problem="4">
+  <div class="eyebrow">// the life of an SQS message</div>
+  <h2 class="tightb">SQS hides a message until someone acks it</h2>
+  <div class="card" style="padding:16px 22px 8px;">
+    <svg class="dg" viewBox="0 100 1108 272" role="img" aria-label="SQS message lifecycle: send, receive and hide, then delete, or reappear after the visibility timeout, or move to the DLQ after too many receives">
+      <g class="fx fade">
+        <rect class="bx" x="10" y="150" width="110" height="60" rx="8"/>
+        <text class="t" x="65" y="176" text-anchor="middle">Relay</text>
+        <text class="s" x="65" y="195" text-anchor="middle">producer</text>
+        <path class="w a" d="M120,180 L226,180" marker-end="url(#ahA)"/>
+        <text class="m" x="175" y="170" text-anchor="middle">SendMessage</text>
+        <rect class="bx hi" x="230" y="130" width="200" height="100" rx="10"/>
+        <text class="t" x="330" y="165" text-anchor="middle">In the queue</text>
+        <text class="s" x="330" y="185" text-anchor="middle">visible</text>
+        <text class="s" x="330" y="203" text-anchor="middle">anyone can receive it</text>
+      </g>
+
+      <g data-step="1">
+        <g class="fx fade">
+          <text class="s" x="508" y="120" text-anchor="middle" style="fill:#7092ff">④ long polling: waits up to 20 s</text>
+          <path class="w a" d="M430,165 L586,165" marker-end="url(#ahA)"/>
+          <text class="m" x="508" y="155" text-anchor="middle">ReceiveMessage</text>
+          <rect class="bx wb" x="590" y="130" width="240" height="100" rx="10"/>
+          <text class="t" x="710" y="160" text-anchor="middle">In flight</text>
+          <text class="s" x="710" y="178" text-anchor="middle">hidden from other consumers</text>
+          <rect class="seg-n" x="610" y="192" width="200" height="10" rx="3"/>
+          <text class="s wt" x="710" y="222" text-anchor="middle">① visibility timeout · 30 s</text>
+        </g>
+        <rect class="seg-w fx grow" style="--d:.4s; --dur:2.4s" x="610" y="192" width="200" height="10" rx="3"/>
+      </g>
+
+      <g data-step="2">
+        <g class="fx fade">
+          <path class="w g" d="M830,170 L936,170" marker-end="url(#ahG)"/>
+          <text class="m gt" x="885" y="160" text-anchor="middle">DeleteMessage</text>
+          <text class="s gt" x="885" y="190" text-anchor="middle">= ack</text>
+          <rect class="bx good" x="940" y="130" width="158" height="100" rx="10"/>
+          <text class="t" x="1019" y="165" text-anchor="middle">Deleted</text>
+          <text class="s" x="1019" y="185" text-anchor="middle">work done,</text>
+          <text class="s" x="1019" y="203" text-anchor="middle">gone for good</text>
+        </g>
+      </g>
+
+      <g data-step="3">
+        <g class="fx fade">
+          <path class="w r dash" d="M590,215 L434,215" marker-end="url(#ahR)"/>
+          <text class="s rt" x="512" y="248" text-anchor="middle">no ack before the timeout</text>
+          <text class="s rt" x="512" y="266" text-anchor="middle">→ visible again, receive count +1</text>
+        </g>
+      </g>
+
+      <g data-step="4">
+        <g class="fx fade">
+          <path class="w r" d="M330,230 L330,296" marker-end="url(#ahR)"/>
+          <text class="s rt" x="318" y="262" text-anchor="end">② receive count › maxReceiveCount (5)</text>
+          <rect class="bx bad" x="230" y="300" width="200" height="64" rx="10"/>
+          <text class="t" x="330" y="326" text-anchor="middle">③ orders-dlq</text>
+          <text class="s" x="330" y="346" text-anchor="middle">alarm, redrive after fix</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <p class="note step" data-step="5">SQS never deletes a message when it hands it out; only the consumer's <code>DeleteMessage</code> does. No delete in time, and the message comes back. That is why delivery is at least once. ①–④ are the four settings on the next slide.</p>
+  <div class="footer">hirespartan.io</div>
+  <aside class="notes">
+    <ul>
+      <li>On entry: the relay sends a message; it sits in the queue, visible to everyone.</li>
+      <li>→ 1: a consumer receives it. It is hidden, not deleted, and the visibility timeout starts counting. Long polling is how the receive waits for work.</li>
+      <li>→ 2: the happy path. The consumer calls DeleteMessage (the ack) in time; the message is gone.</li>
+      <li>→ 3: no ack in time (crash, error, too slow). The message reappears and its receive count goes up.</li>
+      <li>→ 4: too many receives. SQS moves it to the DLQ and the alarm fires.</li>
+      <li>→ 5: the takeaway. The numbers ①–④ match the four settings on the next slide.</li>
+    </ul>
+  </aside>
+</section>
+
+<section class="slide" id="p4-2" data-problem="4">
   <div class="eyebrow">// the queue</div>
   <h2>SQS delivers at least once. Everything else follows from that.</h2>
   <div class="split">
@@ -1103,7 +1179,7 @@ UPDATE outbox SET sent_at = now()
   </aside>
 </section>
 
-<section class="slide" id="p4-2" data-problem="4">
+<section class="slide" id="p4-3" data-problem="4">
   <div class="eyebrow">// visibility timeout and the DLQ</div>
   <h2 class="tightb">Too short a timeout: the same message twice. Too many failures: the DLQ.</h2>
   <div class="card" style="padding:16px 22px 8px;">
