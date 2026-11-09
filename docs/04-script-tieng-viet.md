@@ -584,7 +584,7 @@ Sau khi nghỉ, nhấn **[→]** để vào vấn đề 6.
 > - **Sập vs chậm (down vs slow):** Sập: gọi tới thì bị từ chối ngay. Chậm: gọi tới thì phải chờ rất lâu mới có trả lời, hoặc chờ mãi không có.
 > - **Health check:** Endpoint (ví dụ `/health`) mà Kubernetes gọi định kỳ để hỏi "pod còn sống không?". Nhiều lần không trả lời kịp thì Kubernetes restart pod.
 
-Chào mừng các bạn quay lại. Câu hỏi khởi động:
+Chào mừng các bạn quay lại. Mình là [tên], phần sau mình dẫn. Năm vấn đề đầu là về công việc không mất, không trùng. Giờ mình nói về chuyện khi mọi thứ trở nên chậm. Câu hỏi khởi động:
 
 **Hỏi:** *"Cái nào tệ hơn: một hệ thống phụ thuộc bị sập, hay bị chậm?"* Cho cả phòng giơ tay. Đa số sẽ chọn "sập".
 
@@ -618,9 +618,11 @@ Bốn công cụ, một mục tiêu: *fail fast and alone*, tức là lỗi nhan
 
 **Bulkhead.** Vendor có thread pool nhỏ riêng. Khi vendor treo, chỉ pool đó đầy.
 
-**[→]** Pool nên lớn bao nhiêu? **Little's law**: *số request đang xử lý bằng tốc độ đến nhân thời gian mỗi request.* 50 request mỗi giây, mỗi cái 200 mili giây: 50 nhân 0,2 bằng 10 request cùng lúc. Vendor chậm thành 3 giây: 50 nhân 3 bằng 150. Pool 20 không chứa nổi. Đó là lý do vendor cần bulkhead.
+**[→]** Pool nên lớn bao nhiêu? **Little's law**: *số request đang xử lý bằng tốc độ đến nhân thời gian mỗi request.* Tính **cho một pod**. Ngày flash sale có 250 order mỗi giây, chia cho 10 pod là 25 request mỗi giây mỗi pod. Mỗi request gọi vendor 200 mili giây: 25 nhân 0,2 bằng 5 request cùng lúc. Vendor chậm thành 3 giây: 25 nhân 3 bằng 75. Pool 20 không chứa nổi. Đó là lý do vendor cần bulkhead.
 
-Nói phép tính thật chậm.
+Nói phép tính thật chậm, và nhấn mạnh chữ *mỗi pod*. Pool 20 ở slide 4 là của mỗi pod, nên tốc độ đến cũng phải tính cho mỗi pod; lấy 50 order/s của cả cụm nhân với pool của một pod là sai.
+
+Ở đây "pool" là số lời gọi chạy cùng lúc trên một pod (thread, hoặc với coroutine là số slot của semaphore). Lời gọi payment nằm ngoài transaction, nên thứ bị cạn là chỗ này, không phải kết nối DB.
 
 ## Slide 29 / 49 · Timeouts and breakers, drawn
 
@@ -644,11 +646,13 @@ Câu cuối slide quan trọng: *khi breaker đang open, trả fallback ngay l�
 
 **Ví dụ dễ hiểu:** cầu dao điện trong nhà. Chập điện thì cầu dao nhảy để cả nhà không cháy. Lát sau bạn bật lại xem nó có giữ được không.
 
+**Gài sẵn cho slide 31:** *"Để ý nhé: API cho vendor 3 giây, thử 3 lần, cộng backoff là khoảng 9,6 giây, sát mốc 10 giây của client. Lần thử cuối gần như chắc chắn không ai nhận. Hai slide nữa mình sửa chuyện này."*
+
 ## Slide 30 / 49 · Bulkheads, visualized
 
 ⏱ 4 phút · rời slide lúc 1:13
 
-**[→]** Một pool chung 20 thread. Vendor treo. Từng thread một bị kẹt chờ nó. Giờ `GET /health`, `GET /me`, `POST /orders` đều phải chờ thread. Health check timeout, và Kubernetes restart một pod *đang khỏe*. Bây giờ ít pod hơn mà vấn đề vẫn y nguyên.
+**[→]** Một pool chung 20 chỗ trên mỗi pod. Vendor treo. Từng thread một bị kẹt chờ nó. Giờ `GET /health`, `GET /me`, `POST /orders` đều phải chờ thread. Health check timeout, và Kubernetes restart một pod *đang khỏe*. Bây giờ ít pod hơn mà vấn đề vẫn y nguyên.
 
 Chữ "bulkhead" lấy từ tàu thủy: thân tàu được chia thành nhiều khoang, một khoang thủng thì tàu không chìm.
 
@@ -656,11 +660,13 @@ Chữ "bulkhead" lấy từ tàu thủy: thân tàu được chia thành nhiều
 
 **[→]** Máy tính Little's law. Kéo thanh trượt trực tiếp:
 
-Thử nhé. 50 request mỗi giây, 200 mili giây: 10. Vừa pool 20, vạch trắng là 20. Giờ vendor chậm: 3000 mili giây. 150. Vượt xa.
+Thử nhé. Thanh trượt tính cho một pod. 25 request mỗi giây, 200 mili giây: 5, đúng bằng pool vendor 5 vừa rồi. Vạch trắng là pool 20. Giờ vendor chậm: 3000 mili giây. 75. Vượt xa.
 
 **Hỏi:** *"Ai cho mình một tốc độ request và một độ trễ?"* Để một bạn chọn số. Cả phòng tính nhẩm trước, rồi mới kéo thanh trượt.
 
 (Lưu ý: thanh trượt không làm chuyển slide. Click ra ngoài hoặc dùng bàn phím để đi tiếp.)
+
+**Nếu bị hỏi** *"Code mình dùng Kotlin coroutine, vậy bulkhead có phải là thread pool không?"*: Với HTTP client dạng suspend thì thread không bị chặn khi chờ. Thứ cần giới hạn là *số lời gọi vendor chạy cùng lúc*, nên dùng `Semaphore(5)` hoặc `Dispatchers.IO.limitedParallelism(5)` cho vendor. Cùng một ý tưởng, chỉ khác công cụ.
 
 ## Slide 31 / 49 · The fine print
 
@@ -675,11 +681,13 @@ Thử nhé. 50 request mỗi giây, 200 mili giây: 10. Vừa pool 20, vạch tr
 
 *Lúc vào slide: cây phân nhánh mọc ra 1 → 3 → 9 → 27.*
 
-**Khuếch đại retry.** Ba tầng: app mobile, API, một service nội bộ. Mỗi tầng thử 3 lần. Một lần bấm thành 3, rồi 9, rồi *27 lời gọi* tới một vendor đang quá tải. Chính mình đang tấn công vendor của mình.
+**Khuếch đại retry.** Ba tầng: app mobile, API, payments service. Mỗi tầng thử 3 lần (tức 3 lần gọi, không phải 1 lần gọi cộng 3 lần retry). Một lần bấm thành 3, rồi 9, rồi *27 lời gọi* tới một vendor đang quá tải. Chính mình đang tấn công vendor của mình.
 
-Cách sửa: *chỉ retry ở một chỗ*, thường là tầng gần vendor nhất.
+Cách sửa: *chỉ retry ở một chỗ phía server*, thường là tầng gần vendor nhất. App vẫn được retry, vì nhờ `Idempotency-Key` ở vấn đề 2 nên retry của app là an toàn; cái cần tránh là API và payments service *cũng* retry chồng lên.
 
-**[→]** **Truyền deadline xuống, không dùng timeout cố định.** Client cho mình 10 giây mà 7 giây đã trôi qua, thì lời gọi vendor chỉ được phần còn lại, không phải 3 giây như thường. Truyền deadline xuống, và kiểm tra nó trước mỗi lần retry.
+Thêm một ý nếu còn thời gian: **retry budget**. Chỉ cho retry khi số lần retry còn dưới khoảng 10% tổng số lời gọi tới phụ thuộc đó. Vendor sập hẳn thì budget hết, mình thôi retry.
+
+**[→]** **Truyền deadline xuống, không dùng timeout cố định.** Đây là lời giải cho con số 9,6 giây ở slide 29. Client cho mình 10 giây mà 7 giây đã trôi qua, thì lời gọi vendor chỉ được phần còn lại, không phải 3 giây như thường. Truyền deadline xuống, và kiểm tra nó trước mỗi lần retry.
 
 **[→]** **Quyết định "lỗi nhanh" thì trả về gì.** Lỗi là lựa chọn cuối cùng. Tốt hơn là: một kết quả cache, một tính năng thu gọn, hoặc "đã nhận, sẽ xử lý sau": trả 202 và ghi một dòng outbox. Lại là outbox.
 
@@ -741,13 +749,15 @@ Lần này không phải ai khác chậm, mà chính mình bị quá tải.
 
 **[→]** Đây là độ trễ p99 khi tải tăng dần. Phẳng, phẳng, phẳng, rồi vọt thẳng lên. Điểm đó gọi là **knee**, điểm gãy.
 
-**[→]** Ở đây là 240 request mỗi giây, khi pool database 20 kết nối đầy. Mọi request sau đó phải chờ trong hàng đợi, và hàng đợi cứ dài ra. Một hàng đợi không giới hạn sẽ dài cho tới khi pod hết bộ nhớ.
+**[→]** Ở đây là 240 request mỗi giây, khi pool database đầy. *Con số này minh họa thôi; k6 chạy trên service thật sẽ cho các bạn con số thật.* Mọi request sau đó phải chờ trong hàng đợi, và hàng đợi cứ dài ra. Một hàng đợi không giới hạn sẽ dài cho tới khi pod hết bộ nhớ.
 
 **[→]** Có giới hạn: khi đầy, từ chối ngay với 429 hoặc 503, kèm header `Retry-After` báo khi nào quay lại. Request bị từ chối lỗi trong vài mili giây. Mọi người còn lại vẫn nhanh. *Nói "không" nhanh còn hơn nói "có" chậm.*
 
 Làm sao biết điểm gãy của mình? Load test bằng công cụ như k6: tăng dần traffic, xem độ trễ nhảy ở đâu, và tìm giới hạn nào gây ra nó. Con số đó ghi vào runbook.
 
 **Ví dụ dễ hiểu:** một nhà hàng đông khách nói "hết chỗ rồi, 8 giờ quay lại nhé" vẫn tốt hơn nhà hàng nhận hết khách rồi nửa đêm mới dọn món.
+
+**Nếu bị hỏi** *"Sao không autoscale thêm pod?"*: HPA mất vài phút mới bật được pod mới, flash sale thì dồn trong vài giây. Mỗi pod thêm lại mở 20 kết nối, nên sớm muộn chạm `max_connections` của Postgres. Thêm pod chỉ dời điểm gãy ra xa chứ không xóa được nó, nên vẫn cần backpressure.
 
 ## Slide 36 / 49 · Version 7 (sơ đồ)
 
@@ -786,7 +796,7 @@ Version 7: trên đường client tới API có nhãn "429 if full".
 > - **terminationGracePeriodSeconds:** Thời gian Kubernetes chờ trước khi gửi SIGKILL, mặc định 30 giây.
 > - **Exit 0:** Thoát với mã 0, nghĩa là kết thúc bình thường, không có lỗi.
 
-**[→]** Kubernetes bảo pod dừng. Một `preStop` sleep 5 giây cho load balancer kịp ngừng gửi traffic mới tới mình. Rồi app nhận `SIGTERM`.
+**[→]** Kubernetes xóa pod. Một `preStop` sleep 5 giây cho load balancer kịp ngừng gửi traffic mới tới mình. Hết 5 giây đó app mới nhận `SIGTERM`. (Trên slide, mốc ở giây 0 là "pod deleted", không phải SIGTERM.)
 
 **[→]** Rồi từng vòng lặp làm nốt việc của mình. HTTP server xử lý xong các request đang dở. Consumer ngừng nhận và làm xong lô hiện tại. Relay ngừng claim và publish nốt những gì đã claim.
 
@@ -794,7 +804,9 @@ Version 7: trên đường client tới API có nhãn "429 if full".
 
 Nhưng nhờ dedupe và claim, một lần bị kill đột ngột chỉ làm công việc *trễ*, không làm nó *mất*. Graceful shutdown giúp mỗi lần deploy êm thay vì ồn ào.
 
-**Nếu bị hỏi về thứ tự chính xác:** hook `preStop` chạy trước, rồi container mới nhận `SIGTERM`; 30 giây tính từ lúc bắt đầu, gồm cả thời gian preStop. Slide vẽ đơn giản hóa cho dễ nhìn.
+**Nếu bị hỏi về thứ tự chính xác:** hook `preStop` chạy trước, rồi container mới nhận `SIGTERM`; 30 giây tính từ lúc bắt đầu, gồm cả thời gian preStop.
+
+**Nếu bị hỏi** *"Health check có nên gọi DB hay vendor không?"*: Liveness thì không. Liveness chỉ trả lời "tiến trình còn sống không"; nếu nó phụ thuộc DB hay vendor, một phụ thuộc chậm sẽ làm Kubernetes restart cả loạt pod khỏe (đúng chuyện ở slide 30). Readiness mới là chỗ báo "tạm thời đừng gửi traffic cho tôi".
 
 ## Slide 39 / 49 · Version 8 (sơ đồ)
 
@@ -865,9 +877,9 @@ Dừng lại ở dòng outbox: *"Các bạn nhớ dòng này. Hai slide nữa n�
 
 **[→]** Rồi event chờ khoảng 1 giây cho lần poll tiếp theo của relay; đó là cái giá của polling. Rồi publish 60 mili giây, và 30 mili giây trong queue.
 
-**[→]** Rồi consumer: 2,9 giây. Gần như toàn bộ là email vendor, 2,83 giây. *Thời gian đi vào đây.*
+**[→]** Rồi consumer dedupe và ghi một dòng `email_outbox`, rất nhanh. Rồi email sender gọi email vendor: 2,83 giây. *Thời gian đi vào đây.* Consumer không gọi vendor trong transaction; nó chỉ ghi một dòng, đúng quy tắc "việc quan trọng thì phải là một dòng".
 
-**[→]** Và đây là một trace duy nhất, từ lúc `POST` tới lúc gửi email, vì `traceparent` đi theo trong message SQS. Không có nó, mình sẽ thấy hai trace rời rạc và phải đoán.
+**[→]** Và đây là một trace duy nhất, từ lúc `POST` tới lúc gửi email, vì `traceparent` đi theo trong message SQS và trong dòng `email_outbox`. Không có nó, mình sẽ thấy hai trace rời rạc và phải đoán.
 
 ## Slide 43 / 49 · 03:07 a.m., answered
 
@@ -884,6 +896,8 @@ Dừng lại ở dòng outbox: *"Các bạn nhớ dòng này. Hai slide nữa n�
 Chỉ lại các câu đoán đã ghi trên bảng ở slide 3: *"Cách nào trong số này sẽ tìm ra được?"*
 
 Chính xác. Relay ngừng chạy lúc deploy. Queue rỗng vì *không có gì được publish cả*. Một queue rỗng trông giống hệt một queue khỏe. Nên mọi alert về queue đều im lặng.
+
+*Vì sao relay ngừng?* Vòng lặp relay chạy trong một `launch { }`. Bản deploy mới gặp một exception không ai bắt, vòng lặp chết. Pod vẫn trả lời `/health` bình thường, vì health check chỉ kiểm tra HTTP server, không kiểm tra vòng lặp worker. Nối lại: `launch { }` ở slide 7, try/catch cho từng message ở slide 24, và mục "silent relay" sắp gặp ở slide 48.
 
 **[→]** Với một alert về outbox lag, "dòng chưa gửi cũ nhất quá 5 phút", người trực sẽ bị gọi lúc 2 giờ 15.
 
@@ -919,7 +933,7 @@ So với version 0, sơ đồ lớn hơn nhiều. Nhưng mỗi mảnh đều có
 
 **[→]** Relay lấy dòng outbox và publish lên SQS.
 
-**[→]** Consumer dedupe trong `processed`, làm việc, commit, ack. Rồi gửi email.
+**[→]** Consumer dedupe trong `processed`, ghi một dòng `email_outbox`, commit, ack. Một email sender gửi dòng đó kèm idempotency key cho email vendor, nên email không mất mà cũng không bị gửi hai lần.
 
 **[→]** Một poison message: sau 5 lần nhận, chuyển sang DLQ, và alarm kêu.
 
@@ -942,7 +956,8 @@ So với version 0, sơ đồ lớn hơn nhiều. Nhưng mỗi mảnh đều có
 | 2 | `[đường dẫn tới relay]` | "Transaction kết thúc ở đâu? Có lời gọi mạng nào bên trong không?" | 1 |
 | 3 | `[đường dẫn tới consumer]` | "Dòng nào là ack? Nó nằm trước hay sau commit?" | 1 |
 | 4 | `[đường dẫn Terraform của queue]` | "Visibility timeout có dài hơn thời gian consumer xử lý không?" | 1 |
-| 5 | `[link dashboard]` | Chỉ RED, tuổi queue, DLQ, outbox lag. Theo một trace id thật từ POST tới consumer. | 3 |
+| 5 | `[link dashboard]` | Chỉ RED, tuổi queue, DLQ, outbox lag. Theo một trace id thật từ POST tới consumer. | 2 |
+| 6 | Biểu đồ 3 giờ sáng (hoặc một sự cố thật của team) | "Dấu hiệu đầu tiên ở đâu? Alert nào lẽ ra đã bắt được sớm hơn?" Để các bạn tự chỉ chỗ cần nhìn. | 1 |
 
 **Nếu không show được repo thật** (không có quyền, hoặc demo trục trặc): dùng Bài tập 4 trong `03-qa-and-exercises.md`. Đó là 6 đoạn code có lỗi để các bạn tìm, cùng bài học mà không có rủi ro demo.
 
@@ -952,8 +967,8 @@ So với version 0, sơ đồ lớn hơn nhiều. Nhưng mỗi mảnh đều có
 
 Mỗi con số một câu, đi nhanh:
 
-- 27 lời gọi: một lần bấm, ba tầng cùng retry. Chỉ retry ở một chỗ.
-- 150 request cùng lúc: 50 request mỗi giây nhân 3 giây. Lý do vendor có pool riêng.
+- 27 lời gọi: một lần bấm, ba tầng mỗi tầng thử 3 lần. Chỉ retry ở một chỗ phía server.
+- 75 request cùng lúc: 25 request mỗi giây *trên một pod* nhân 3 giây. Pool 20 không chứa nổi, nên vendor có pool riêng.
 - 10, 3, 1 giây: timeout chặng trong ngắn hơn chặng ngoài.
 - 30 giây: thời hạn claim của relay.
 - 5 lần nhận: rồi vào DLQ.
