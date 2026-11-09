@@ -1728,12 +1728,12 @@ UPDATE outbox SET sent_at = now()
       <div class="fact step" data-step="3"><div class="lbl">your turn</div><p>What stopped? Why did no queue alert fire? Which one alert would have paged within 5 minutes?</p></div>
     </div>
   </div>
-  <div class="inthis"><span class="lbl">deep dive →</span> <span class="chip acc" data-goto="p9-1">Logs, metrics, traces</span> <span class="chip acc" data-goto="p9-2">One trace, end to end</span> <span class="chip acc" data-goto="p9-3">03:07 a.m., answered</span></div>
+  <div class="inthis"><span class="lbl">deep dive →</span> <span class="chip acc" data-goto="p9-1">Logs, metrics, traces</span> <span class="chip acc" data-goto="p9-2">One trace, end to end</span></div>
   <div class="footer">hirespartan.io</div>
   <aside class="notes"><ul>
     <li>The marker on the mini map shows where in the shop this breaks.</li>
     <li>→ ×3 reveals the facts. Before the second one, ask the room: "What do you think happened?"</li>
-    <li>Then → into the deep dive (3 slides), or click a chip to jump. Press M to go back to the map.</li>
+    <li>Then → into the deep dive (2 slides), or click a chip to jump. Press M to go back to the map.</li>
   </ul></aside>
 </section>
 
@@ -1760,7 +1760,7 @@ UPDATE outbox SET sent_at = now()
   <div class="grid g2" style="margin-top:16px;">
     <div class="card hi step" data-step="1">
       <h3>Page on symptoms, not causes</h3>
-      <p>Error rate over 1% for 5 minutes, p99 over the SLO, DLQ not empty, queue age over 10 minutes, <b>oldest unsent outbox row over 5 minutes</b>. Not "CPU is 80%".</p>
+      <p>Error rate over 1% for 5 minutes, p99 over the SLO, DLQ not empty, queue age over 10 minutes, <b>oldest unsent outbox row over 5 minutes</b>. Not "CPU is 80%". The outbox one would have paged at 02:15.</p>
     </div>
     <div class="card step" data-step="2">
       <h3>Every alert has a runbook and a person</h3>
@@ -1770,7 +1770,7 @@ UPDATE outbox SET sent_at = now()
   <div class="footer">hirespartan.io</div>
   <aside class="notes">
     <ul>
-      <li>→ 1: what pages. Outbox lag is the answer to the 3 a.m. graph: when the relay dies, the queue is empty and healthy; only the outbox table shows the problem.</li>
+      <li>→ 1: what pages, and the answer to the 3 a.m. graph. The relay's launch { } loop died on an uncaught exception at the deploy while /health kept passing. Nothing was published, so the queue was empty and looked healthy; only the outbox table showed the problem. An outbox-lag alert pages at 02:15, 52 minutes before customers noticed at 03:07.</li>
       <li>Metric: <code>now() - min(created_at) where sent_at is null</code>. Cheap query with a partial index on unsent rows.</li>
       <li>→ 2: runbooks and owners.</li>
     </ul>
@@ -1833,58 +1833,6 @@ UPDATE outbox SET sent_at = now()
       <li>→ 2: the async hop: a 1 s wait for the relay's next poll, the publish, a short time in the queue.</li>
       <li>→ 3: the consumer, and the slow vendor call inside it: that's where the time went.</li>
       <li>→ 4: why it's one trace. Numbers are illustrative.</li>
-    </ul>
-  </aside>
-</section>
-
-<section class="slide" id="p9-3" data-problem="9">
-  <div class="eyebrow">// 03:07 a.m., answered</div>
-  <h2>The relay stopped at the deploy. The right alert would have paged in 5 minutes.</h2>
-  <div class="card" style="padding:22px 26px 14px;">
-    <svg class="dg" viewBox="0 0 1060 300" role="img" aria-label="The same graph with the outbox lag alert marked at 02:15 and customer reports at 03:07">
-      <g class="grid-l">
-        <line x1="60" y1="30" x2="1040" y2="30"/><line x1="60" y1="100" x2="1040" y2="100"/>
-        <line x1="60" y1="170" x2="1040" y2="170"/><line x1="60" y1="240" x2="1040" y2="240"/>
-      </g>
-      <g>
-        <text class="s" x="50" y="244" text-anchor="end">0</text><text class="s" x="50" y="174" text-anchor="end">2k</text>
-        <text class="s" x="50" y="104" text-anchor="end">4k</text><text class="s" x="50" y="34" text-anchor="end">6k</text>
-        <text class="s" x="60" y="268">00:00</text><text class="s" x="305" y="268">01:00</text>
-        <text class="s" x="550" y="268">02:00</text><text class="s" x="795" y="268">03:00</text>
-        <text class="s" x="1000" y="268">03:50</text>
-      </g>
-      <line x1="590" y1="24" x2="590" y2="240" stroke="#f0a35e" stroke-dasharray="4 5" stroke-width="1.2"/>
-      <text class="s wt" x="584" y="44" text-anchor="end">02:10 · deploy</text>
-      <polyline class="fx draw" pathLength="1" style="--dur:.8s" fill="none" stroke="#7092ff" stroke-width="2.5"
-        points="60,236 120,233 180,237 240,232 300,235 360,231 420,236 480,233 540,236 590,234 640,238 700,238 760,238 820,238 880,238 940,238 1040,238"/>
-      <polyline class="fx draw" pathLength="1" style="--dur:.8s; --d:.3s" fill="none" stroke="#ef6b6b" stroke-width="2.5"
-        points="60,239 300,239 590,239 640,226 700,205 760,182 820,160 880,136 940,113 1000,90 1040,74"/>
-      <g data-step="1">
-        <line class="fx draw" pathLength="1" x1="611" y1="240" x2="611" y2="24" stroke="#5fcf9a" stroke-width="2"/>
-        <text class="m gt" x="604" y="124" text-anchor="end">02:15 · paged</text>
-        <text class="s" x="604" y="141" text-anchor="end">oldest unsent row &gt; 5 min</text>
-      </g>
-      <g data-step="2">
-        <line class="fx draw" pathLength="1" x1="824" y1="240" x2="824" y2="24" stroke="#ef6b6b" stroke-width="2"/>
-        <text class="m rt" x="832" y="28">03:07 · customers noticed</text>
-        <path class="w g" d="M615,78 L820,78" marker-start="url(#ahG)" marker-end="url(#ahG)"/>
-        <text class="m gt" x="717" y="70" text-anchor="middle">52 min earlier</text>
-      </g>
-      <g style="font-size:14px">
-        <circle cx="80" cy="294" r="5" fill="#7092ff"/><text x="92" y="299" style="font-size:14px">SQS queue depth</text>
-        <circle cx="260" cy="294" r="5" fill="#ef6b6b"/><text x="272" y="299" style="font-size:14px">outbox rows with sent_at IS NULL</text>
-        <circle cx="560" cy="294" r="5" fill="#5fcf9a"/><text x="572" y="299" style="font-size:14px">new alert: outbox lag</text>
-      </g>
-    </svg>
-  </div>
-  <p class="note step" data-step="3">The relay's <code>launch { }</code> loop died on an uncaught exception; <code>/health</code> still passed. The fix: one query, one alert rule. The pattern: every async hop needs its own "is work piling up here?" signal.</p>
-  <div class="footer">hirespartan.io</div>
-  <aside class="notes">
-    <ul>
-      <li>Same graph as the opening. Ask: "Now that you've seen the pipeline, what happened?" Then reveal.</li>
-      <li>→ 1: the outbox-lag alert fires 5 minutes after the deploy.</li>
-      <li>→ 2: customers noticed at 03:07; the alert would have been 52 minutes earlier.</li>
-      <li>→ 3: the takeaway. Illustrative incident; swap in your own if you used a real one at the start.</li>
     </ul>
   </aside>
 </section>
